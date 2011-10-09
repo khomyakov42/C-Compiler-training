@@ -1,0 +1,5 @@
+void main(args[]){
+	double x = 5 + 0.7e+10;
+	double y = x+++++x;
+	printf("%d%s", x+y, "Hellow \"test\"");
+}

@@ -33,12 +33,22 @@ namespace Compiler{
 			{
 				FileStream file = new FileStream(@filename, FileMode.Open, FileAccess.Read);
 				Scaner scaner = new Scaner(file);
-				Token token;
+				Token token = new Token();
 
 				do
 				{
-					token = scaner.Read();
-					Console.WriteLine(token.ToString());
+
+					try
+					{
+						token = scaner.Read();
+						Console.WriteLine(token.ToString());
+					}
+					catch (Exception es)
+					{
+						Console.WriteLine(es.Message);
+						continue;
+					}
+
 				} while (token.type != Token.Type.EOF);
 
 				

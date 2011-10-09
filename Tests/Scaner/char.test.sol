@@ -1,0 +1,12 @@
+CHAR 1 1 0
+CHAR 2 1 z
+CHAR 4 1 
+
+CHAR 6 1 a
+CHAR 7 1 u
+CHAR 8 1 
+
+CHAR 10 1 
+CHAR 11 1 0
+CHAR 12 1 
+EOF 12 6 

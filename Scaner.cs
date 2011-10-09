@@ -22,6 +22,8 @@ namespace Compiler
 			this.value = val;
 		}
 
+		public Token() { pos = 1; line = 1; type = Type.NONE; value = ""; }
+
 		public override string ToString()
 		{
 			return this.type + " " + this.line + " " + this.pos + " " + this.value;
@@ -37,7 +39,7 @@ namespace Compiler
 
 			public Buffer(Stream stream) : base(stream) {}
 
-			public int Read()
+			public override int Read()
 			{
 				int ch = base.Read();
 
@@ -441,7 +443,7 @@ namespace Compiler
 		{
 			buf.Read();
 
-			while (buf.Peek() != '\n' && buf.Peek() != '\"')
+			while (buf.Peek() != '\n' && buf.Peek() != '\"' && buf.Peek() != -1)
 			{
 				val += (char)ReadChar();
 			}
