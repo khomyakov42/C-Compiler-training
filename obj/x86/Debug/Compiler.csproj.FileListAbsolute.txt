@@ -8,3 +8,8 @@ C:\Users\Admin\Documents\My Documents\Compiler\Compiler\obj\x86\Debug\Compiler.p
 C:\Users\Admin\Documents\My Documents\Compiler\Compiler\bin\Debug\Compiler.exe
 C:\Users\Admin\Documents\My Documents\Compiler\Compiler\bin\Debug\Compiler.pdb
 C:\Users\Admin\Documents\My Documents\Compiler\Compiler\obj\x86\Debug\ResolveAssemblyReference.cache
+C:\Users\Admin\Documents\Documents\Compiler\Compiler\obj\x86\Debug\Compiler.exe
+C:\Users\Admin\Documents\Documents\Compiler\Compiler\obj\x86\Debug\Compiler.pdb
+C:\Users\Admin\Documents\Documents\Compiler\Compiler\bin\Debug\Compiler.exe
+C:\Users\Admin\Documents\Documents\Compiler\Compiler\bin\Debug\Compiler.pdb
+C:\Users\Admin\Documents\Documents\Compiler\Compiler\obj\x86\Debug\ResolveAssemblyReference.cache

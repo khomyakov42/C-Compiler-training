@@ -94,7 +94,7 @@ namespace Compiler
 
 		private bool IsHex(int ch)
 		{
-			return IsDecimal(ch) || ch >= 'A' && ch <= 'F';
+			return IsDecimal(ch) || ch >= 'A' && ch <= 'F' || ch >= 'a' && ch <= 'f';
 		}
 
 		private bool IsWhite(int ch)
@@ -157,7 +157,7 @@ namespace Compiler
 		{
 			try
 			{
-				return Convert.ToDouble(s);
+				return Convert.ToDouble(s.Replace('.', ','));
 			}
 			catch (OverflowException)
 			{
@@ -174,15 +174,18 @@ namespace Compiler
 		{
 			int platform = 10;
 			int first_ch = buf.Peek();
+			string res = "";
 
 			if (first_ch == '0')
 			{
 				
-				ReadInValue();
+				//ReadInValue();
+				res += (char)buf.Read();
 
 				if ((buf.Peek() == 'x' || buf.Peek() == 'X'))
 				{
-					ReadInValue();
+					//ReadInValue();
+					res += (char)buf.Read();
 					platform = 16;
 				}
 				else if(IsOctal(buf.Peek()) && !part_float)
@@ -205,13 +208,15 @@ namespace Compiler
 				}
 			}
 
-			while (IsDigit(buf.Peek(), platform)) { ReadInValue(); }
+			while (IsDigit(buf.Peek(), platform)) { res += (char)buf.Read(); }
+
+			val += StringToInt(res, platform);
 
 			return platform;
 		}
 
 		private int GetFloat(bool is_exist_integer = false, int pl = 0){
-			int platform = 10;
+			int platform = 0;
 
 			if (buf.Peek() == '.')
 			{
@@ -253,7 +258,8 @@ namespace Compiler
 					throw_exception("необходимо \"E\" для основания \"10\"");// ожидалось E
 				}
 
-				ReadInValue();
+				val += 'E';
+				buf.Read();
 
 				if (IsEnter("+-", buf.Peek()))
 				{
@@ -268,10 +274,13 @@ namespace Compiler
 				GetInteger(platform, true);
 			}
 
-			type = Token.Type.INTEGER;
+			if (!is_exist_integer)
+				val = StringToDouble(val).ToString();
+
+			//type = Token.Type.INTEGER;
 
 			if (IsAlpha(buf.Peek()))
-				throw new Exception();
+				throw new Exception("неверная запись числа");
 
 			return platform;
 		}
@@ -288,8 +297,10 @@ namespace Compiler
 			else
 			{
 				type = Token.Type.INTEGER;
-				val = StringToInt(val, platform).ToString();
+				//val = StringToInt(val, platform).ToString();
 			}
+
+			type = Token.Type.DOUBLE;
 
 			if (IsAlpha(buf.Peek()))
 			{
@@ -318,6 +329,8 @@ namespace Compiler
 				{
 					ch = buf.Read();
 				} while (!(ch == '*' && buf.Peek() == '/' || ch == Buffer.EOF));
+
+				buf.Read();
 			}
 			else
 			{
@@ -326,21 +339,19 @@ namespace Compiler
 					ch = buf.Read();
 				} while (!(ch == '\n' || ch == Buffer.EOF));
 			}
-
 		}
 
 		private void GetOperator()
 		{
 			int ch = ReadInValue();
 
-			if (":?[]".IndexOf((char)ch) > -1)
+			if (":?[]~".IndexOf((char)ch) > -1)
 			{
 				return;
 			}
 			else if (ch == '/' && (buf.Peek() == '/' || buf.Peek() == '*'))
 			{
-				buf.Read();
-				PassComment(buf.Peek() == '*');
+				PassComment(buf.Read() == '*');
 				Read();
 			}
 			else if (IsOperator(buf.Peek()))
@@ -373,7 +384,10 @@ namespace Compiler
 			if (buf.Peek() == '\\')
 			{
 				buf.Read();
-				switch (buf.Peek())
+				int ch = buf.Read();
+				result += (char)ch;
+
+				switch (ch)
 				{
 					case '\'': return '\'';
 					case '\"': return '\"';
@@ -386,20 +400,20 @@ namespace Compiler
 					case 't': return '\t';
 					case 'v': return '\v';
 					case 'x':
-						result += '0' + (char)buf.Read();
+						result = '0' + result;
 
 						if (!IsHex(buf.Peek()))
 						{
-							throw_exception("недопустимый символ \"" + buf.Peek() + "\" для основания \"16\"");
+							throw_exception("недопустимый символ \"" + (char)buf.Peek() + "\" для основания \"16\"");
 						}
 
 						while (IsHex(buf.Peek())) { result += (char)buf.Read(); };
 
 						return StringToInt(result, 16);
 					default:
-						if (buf.Peek() != '0')
+						if (ch != '0')
 						{
-							throw_exception("недопустимый символ \"" + buf.Peek() + "\" для основания \"8\"");
+							throw_exception("недопустимый символ \"" + (char)buf.Peek() + "\" для основания \"8\"");
 						}
 
 						while (IsOctal(buf.Peek())) { result += (char)buf.Read(); };
@@ -467,8 +481,8 @@ namespace Compiler
 			}
 			else if (ch == '.')
 			{
+				type = Token.Type.DOUBLE;
 				GetFloat();
-				val = StringToDouble(val).ToString();
 			}
 			else if (IsSeparator(ch))
 			{
