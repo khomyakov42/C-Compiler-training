@@ -11,18 +11,18 @@ namespace Compiler
 		public enum Type { OPERATOR, IDENTIFICATOR, SEPARATOR, EOF, INTEGER, DOUBLE, CHAR, STRING, NONE };
 
 		public int pos, line;
-		public string value;
 		public Type type;
+		public string value;
 
 		public Token(int pos, int line, Type type, string val)
 		{
 			this.line = line;
-			this.pos = pos - val.Count() + 1;
+			this.pos = pos;
 			this.type = type;
 			this.value = val;
 		}
 
-		public string ToString()
+		public override string ToString()
 		{
 			return this.type + " " + this.line + " " + this.pos + " " + this.value;
 		}
@@ -77,7 +77,7 @@ namespace Compiler
 
 		private void throw_exception(string s)
 		{
-			throw new Exception(s + " Строка " + buf.GetLine() + " позиция " + buf.getPos());
+			throw new Exception("Ошибка в строке " + buf.GetLine() + " позиции " + buf.getPos() + ": " + s);
 		}
 
 #region helper functions
@@ -148,11 +148,23 @@ namespace Compiler
 			}
 			catch (OverflowException)
 			{
-				throw_exception("Невозможно преобразовать.");
+				throw_exception("невозможно преобразовать \"" + s + "\" в число int");
 				return 0;
 			}
 		}
 
+		private double StringToDouble(string s)
+		{
+			try
+			{
+				return Convert.ToDouble(s);
+			}
+			catch (OverflowException)
+			{
+				throw_exception("невозможно преобразовать \"" + s + "\" в число double");
+				return 0;
+			}
+		}
 
 #endregion
 
@@ -181,14 +193,15 @@ namespace Compiler
 
 			if (pl != 0 && pl != platform)
 			{
-				throw_exception("Ожидалось " + pl + "ричное число.");// неверная система счисления
+				throw_exception("недопустимая запись для основания \"" + pl + "\"");// неверная система счисления
 			}
 
 			if (first_ch != '0' || platform != 10)
 			{
 				if (!IsDigit(buf.Peek(), platform))
 				{
-					throw_exception("Ожидалось число.");//не обходимо число
+					//не обходимо число
+					throw_exception("недопустимый символ \"" + (char)buf.Peek() + "\" для основания \"" + platform + "\"");
 				}
 			}
 
@@ -215,7 +228,7 @@ namespace Compiler
 						ReadInValue();
 						if (buf.Peek() != '.')
 						{
-							throw_exception("Ожидалась \".\".");
+							throw_exception("необходима \".\"");
 						}
 						ReadInValue();			
 					} 
@@ -226,18 +239,18 @@ namespace Compiler
 			}
 			else if (!is_exist_integer)
 			{
-				throw_exception("Ожидалась \".\".");//необходима .
+				throw_exception("необходима \".\"");//необходима .
 			}
 
 			if (IsEnter("EepP", buf.Peek()))
 			{
 				if ((platform == 8 || platform == 16) && (!IsEnter("Pp", buf.Peek())))
 				{
-					throw_exception("Ожидалось \"P\", обнаружено \"E\"");// ожидалось p 
+					throw_exception("необходимо \"P\" для основания \"" + platform + "\"");// ожидалось p 
 				}
 				else if (platform == 10 && (!IsEnter("Ee", buf.Peek())))
 				{
-					throw_exception("Ожидалось \"E\", обнаружено \"P\"");// ожидалось E
+					throw_exception("необходимо \"E\" для основания \"10\"");// ожидалось E
 				}
 
 				ReadInValue();
@@ -249,7 +262,7 @@ namespace Compiler
 
 				if (!IsDecimal(buf.Peek()))
 				{
-					throw_exception("Ожидалось число.");//полсе Е должна быть цифра
+					throw_exception("требуется экспоненциальное значение");//полсе Е должна быть цифра
 				}
 
 				GetInteger(platform, true);
@@ -270,22 +283,26 @@ namespace Compiler
 			if (IsEnter(".eEpP", buf.Peek()))
 			{
 				GetFloat(true, platform);
+				val = StringToDouble(val).ToString();
 			}
 			else
+			{
 				type = Token.Type.INTEGER;
+				val = StringToInt(val, platform).ToString();
+			}
 
 			if (IsAlpha(buf.Peek()))
 			{
-				throw new Exception();
+				throw_exception("недопустимый символ \"" + (char)buf.Peek() + "\" в записи числа.");
+			}
+			else if ((platform == 8 && IsDecimal(buf.Peek())))
+			{
+				throw_exception("недопустимая цифра \"" + (char)buf.Peek() + "\" для основания \"8\"");
 			}
 		}
 
 		private void GetIdentificator()
 		{
-			if (!IsAlpha(buf.Peek()))
-			{
-				throw_exception("Ожидался идентификатор.");
-			}
 
 			while (IsAlpha(buf.Peek()) || IsDecimal(buf.Peek())) { ReadInValue(); }
 
@@ -314,9 +331,6 @@ namespace Compiler
 
 		private void GetOperator()
 		{
-			if(!IsOperator(buf.Peek()))
-				throw_exception("Ожидался оператор.");
-
 			int ch = ReadInValue();
 
 			if (":?[]".IndexOf((char)ch) > -1)
@@ -339,7 +353,7 @@ namespace Compiler
 
 					if (ch == '.' && ch != buf.Peek())
 					{
-						throw_exception("Ожидалась \".\".");
+						throw_exception("ожидался оператор \"...\"");
 					}
 
 
@@ -376,7 +390,7 @@ namespace Compiler
 
 						if (!IsHex(buf.Peek()))
 						{
-							throw_exception("Ожидaлось 16 ричное число.");
+							throw_exception("недопустимый символ \"" + buf.Peek() + "\" для основания \"16\"");
 						}
 
 						while (IsHex(buf.Peek())) { result += (char)buf.Read(); };
@@ -385,7 +399,7 @@ namespace Compiler
 					default:
 						if (buf.Peek() != '0')
 						{
-							throw_exception("Ожидалось 8рично число");
+							throw_exception("недопустимый символ \"" + buf.Peek() + "\" для основания \"8\"");
 						}
 
 						while (IsOctal(buf.Peek())) { result += (char)buf.Read(); };
@@ -403,7 +417,7 @@ namespace Compiler
 			val += (char)ReadChar();
 			if (buf.Peek() != '\'')
 			{
-				throw_exception("Ожидалась \" \' \"");
+				throw_exception("отсутствует \" \' \"");
 			}
 
 			buf.Read();//пропускаем закрывающуюся ковычку
@@ -420,7 +434,7 @@ namespace Compiler
 
 			if (buf.Peek() == '\n')
 			{
-				throw_exception("Ожидалась \".");
+				throw_exception("отсутствует \"\"\"");
 			}
 
 			buf.Read();
@@ -434,6 +448,8 @@ namespace Compiler
 			val = "";
 
 			while (IsWhite(buf.Peek())) { buf.Read(); }
+
+			int line = buf.GetLine(), pos = buf.getPos() + 1;
 
 			int ch = buf.Peek();
 
@@ -452,6 +468,7 @@ namespace Compiler
 			else if (ch == '.')
 			{
 				GetFloat();
+				val = StringToDouble(val).ToString();
 			}
 			else if (IsSeparator(ch))
 			{
@@ -476,9 +493,12 @@ namespace Compiler
 
 
 			if (type == Token.Type.NONE)
-				throw_exception("Undifined TOKEN");
+			{
+				buf.Read();
+				throw_exception("недопустимый символ \"" + (char)ch + "\"");
+			}
 
-			return new Token(buf.getPos(), buf.GetLine(), type, val);
+			return new Token(pos, line, type, val);
 		}
    }
 }
