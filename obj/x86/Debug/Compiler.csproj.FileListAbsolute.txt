@@ -1,0 +1,7 @@
+C:\Users\Admin\Documents\Мой Документы\Программирование на ЭВМ\Compiler\Compiler\bin\Debug\Compiler.exe
+C:\Users\Admin\Documents\Мой Документы\Программирование на ЭВМ\Compiler\Compiler\bin\Debug\Compiler.pdb
+C:\Users\Admin\Documents\Мой Документы\Программирование на ЭВМ\Compiler\Compiler\obj\x86\Debug\ResolveAssemblyReference.cache
+C:\Users\Admin\Documents\Мой Документы\Программирование на ЭВМ\Compiler\Compiler\obj\x86\Debug\Compiler.exe
+C:\Users\Admin\Documents\Мой Документы\Программирование на ЭВМ\Compiler\Compiler\obj\x86\Debug\Compiler.pdb
+C:\Users\Admin\Documents\My Documents\Compiler\Compiler\obj\x86\Debug\Compiler.exe
+C:\Users\Admin\Documents\My Documents\Compiler\Compiler\obj\x86\Debug\Compiler.pdb
