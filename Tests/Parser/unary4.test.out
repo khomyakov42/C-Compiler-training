@@ -1,0 +1,7 @@
+"ROOT"
+    "EXPR"
+         "sizeof@"
+              "x"
+    "EXPR"
+         "sizeof@"
+              "int"

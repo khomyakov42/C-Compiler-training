@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -6,32 +7,136 @@ using System.IO;
 
 namespace Compiler
 {
+
 	class Token
 	{
-		public enum Type { OPERATOR, IDENTIFICATOR, SEPARATOR, EOF, INTEGER, DOUBLE, CHAR, STRING, NONE };
+		public enum Type
+		{
+			LPAREN , RPAREN, LBRACKET, RBRACKET, LBRACE, RBRACE, COMMA, OP_TILDE, QUESTION, SEMICOLON,
+			OP_DIV, OP_DIV_ASSIGN, OP_MOD, OP_MOD_ASSIGN, OP_STAR, OP_MUL_ASSIGN, OP_NOT, OP_NOT_EQUAL, OP_EQUAL, OP_ASSIGN,
+			OP_XOR, OP_XOR_ASSIGN, OP_PLUS, OP_PLUS_ASSIGN, OP_INC, OP_SUB, OP_SUB_ASSIGN, OP_DEC, OP_REF, OP_BIT_OR,
+			OP_BIT_OR_ASSIGN, OP_OR, OP_BIT_AND, OP_BIT_AND_ASSIGN, OP_AND, OP_LESS, OP_LESS_OR_EQUAL, OP_L_SHIFT,
+			OP_L_SHIFT_ASSIGN, OP_MORE, OP_MORE_OR_EQUAL, OP_R_SHIFT, OP_R_SHIFT_ASSIGN, OP_DOT, OP_ELLIPSIS, COLON,
+			KW_BREAK, KW_WORD, KW_CHAR, KW_CONST, KW_CONTINUE, KW_DEFAULT, KW_DO, KW_DOUBLE, KW_ELSE, KW_ENUM, KW_EXTERN,
+			KW_FOR, KW_IF, KW_INLINE, KW_INT, KW_REGISTER, KW_RESTRICT, KW_RETURN, KW_SIZEOF, KW_STRUCT, KW_SWITCH, 
+			KW_TYPEDEF, KW_UNION, KW_VOID, KW_WHILE, KW_STATIC,
 
-		public int pos, line;
-		public Type type;
-		public string value;
+			IDENTIFICATOR, OPERATOR, SEPARATOR, EOF, CONST_INT, CONST_DOUBLE, CONST_CHAR, CONST_STRING, VOID, NONE, KEYWORLD
+		};
+
+		public static readonly Hashtable terms, type_to_terms;
+		public int pos, line;				
+		public Type type;						
+		public string strval;				
+													
+		static Token()
+		{
+			terms = new Hashtable();
+			type_to_terms = new Hashtable();
+
+			terms["("] = Type.LPAREN;
+			terms[")"] = Type.RPAREN;
+			terms["["] = Type.LBRACKET;
+			terms["]"] = Type.RBRACKET;
+			terms["{"] = Type.LBRACE;
+			terms["}"] = Type.RBRACE;
+			terms[","] = Type.COMMA;
+			terms["~"] = Type.OP_TILDE;
+			terms["?"] = Type.QUESTION;
+			terms[";"] = Type.SEMICOLON;
+			terms["/"] = Type.OP_DIV;
+			terms["/="] = Type.OP_DIV_ASSIGN;
+			terms["%"] = Type.OP_MOD;
+			terms["%="] = Type.OP_MOD_ASSIGN;
+			terms["*"] = Type.OP_STAR;
+			terms["*="] = Type.OP_MUL_ASSIGN;
+			terms["!"] = Type.OP_NOT;
+			terms["!="] = Type.OP_NOT_EQUAL;
+			terms["="] = Type.OP_ASSIGN;
+			terms["=="] = Type.OP_NOT_EQUAL;
+			terms["^"] = Type.OP_XOR;
+			terms["^="] = Type.OP_XOR_ASSIGN;
+			terms["+"] = Type.OP_PLUS;
+			terms["+="] = Type.OP_PLUS_ASSIGN;
+			terms["++"] = Type.OP_INC;
+			terms["-"] = Type.OP_SUB;
+			terms["-="] = Type.OP_SUB_ASSIGN;
+			terms["--"] = Type.OP_DEC;
+			terms["->"] = Type.OP_REF;
+			terms["|"] = Type.OP_BIT_OR;
+			terms["|="] = Type.OP_BIT_OR_ASSIGN;
+			terms["||"] = Type.OP_OR;
+			terms["&"] = Type.OP_BIT_AND;
+			terms["&="] = Type.OP_BIT_AND_ASSIGN;
+			terms["&&"] = Type.OP_AND;
+			terms["<"] = Type.OP_LESS;
+			terms["<="] = Type.OP_LESS_OR_EQUAL;
+			terms["<<"] = Type.OP_L_SHIFT;
+			terms["<<="] = Type.OP_L_SHIFT_ASSIGN;
+			terms[">"] = Type.OP_MORE;
+			terms[">="] = Type.OP_MORE_OR_EQUAL;
+			terms[">>"] = Type.OP_R_SHIFT;
+			terms[">>="] = Type.OP_R_SHIFT_ASSIGN;
+			terms["."] = Type.OP_DOT;
+			terms["..."] = Type.OP_ELLIPSIS;
+			terms[":"] = Type.COLON;
+			terms["break"] = Type.KW_BREAK;
+			terms["case"] = Type.KW_WORD;
+			terms["char"] = Type.KW_CHAR;
+			terms["const"] = Type.KW_CONST;
+			terms["continue"] = Type.KW_CONTINUE;
+			terms["default"] = Type.KW_DEFAULT;
+			terms["do"] = Type.KW_DO;
+			terms["double"] = Type.KW_DOUBLE;
+			terms["else"] = Type.KW_ELSE;
+			terms["enum"] = Type.KW_ENUM;
+			terms["extern"] = Type.KW_EXTERN;
+			terms["for"] = Type.KW_FOR;
+			terms["if"] = Type.KW_IF;
+			terms["inline"] = Type.KW_INLINE;
+			terms["int"] = Type.KW_INT;
+			terms["register"] = Type.KW_REGISTER;
+			terms["restrict"] = Type.KW_RESTRICT;
+			terms["return"] = Type.KW_RETURN;
+			terms["sizeof"] = Type.KW_SIZEOF;
+			terms["static"] = Type.KW_STATIC;
+			terms["struct"] = Type.KW_STRUCT;
+			terms["switch"] = Type.KW_SWITCH;
+			terms["typedef"] = Type.KW_TYPEDEF;
+			terms["union"] = Type.KW_UNION;
+			terms["void"] = Type.KW_VOID;
+			terms["while"] = Type.KW_WHILE;
+
+			foreach (DictionaryEntry de in terms)
+			{
+				type_to_terms[de.Value] = de.Key;
+			}
+		}
 
 		public Token(int pos, int line, Type type, string val)
 		{
 			this.line = line;
 			this.pos = pos;
-			this.type = type;
-			this.value = val;
+			this.type = type != Type.OPERATOR && type != Type.SEPARATOR ? type: (Type)Token.terms[val];
+			this.strval = val;
 		}
 
-		public Token() { pos = 1; line = 1; type = Type.NONE; value = ""; }
+		public Token() { pos = 1; line = 1; type = Type.NONE; strval = ""; }
 
 		public override string ToString()
 		{
-			return this.type + " " + this.line + " " + this.pos + " " + this.value;
+			return this.type + " " + this.line + " " + this.pos + " " + this.strval;
 		}
 	}
 
    class Scaner
    {
+		class Exception : System.Exception
+		{
+			public Exception(string message, int line, int pos) : 
+				base("Лексическая ошибка в строке " + line + " позиции " + pos + ": " + message) { }
+		}
+
 		class Buffer: StreamReader
 		{
 			public const int EOF = -1;
@@ -63,12 +168,14 @@ namespace Compiler
 				return pos;
 			}
 		}
-		
+
 		Buffer buf;
 		string val;
 		Token.Type type;
 
-      public Scaner(System.IO.Stream istream) { buf = new Buffer(istream); }
+      public Scaner(System.IO.Stream istream) { 
+			buf = new Buffer(istream);
+		}
 
 		private int ReadInValue()
 		{
@@ -79,7 +186,11 @@ namespace Compiler
 
 		private void throw_exception(string s)
 		{
-			throw new Exception("Ошибка в строке " + buf.GetLine() + " позиции " + buf.getPos() + ": " + s);
+			int pos = buf.getPos(), line = buf.GetLine();
+
+			while (!IsWhite(buf.Peek()) && buf.Peek() != -1) { buf.Read(); };
+
+			throw new Exception(s, line, pos);
 		}
 
 #region helper functions
@@ -239,8 +350,7 @@ namespace Compiler
 						}
 						ReadInValue();			
 					} 
-		//			else if (!is_exist_integer)
-		//				throw_exception("Ожидалось число.");//необходимо число после . тк нет числа перед точкой
+		
 					return 0;
 				}
 			}
@@ -279,10 +389,8 @@ namespace Compiler
 			if (!is_exist_integer)
 				val = StringToDouble(val).ToString();
 
-			//type = Token.Type.INTEGER;
-
 			if (IsAlpha(buf.Peek()))
-				throw new Exception("неверная запись числа");
+				throw_exception("неверная запись числа");
 
 			return platform;
 		}
@@ -295,14 +403,12 @@ namespace Compiler
 			{
 				GetFloat(true, platform);
 				val = StringToDouble(val).ToString();
+				type = Token.Type.CONST_DOUBLE;
 			}
 			else
 			{
-				type = Token.Type.INTEGER;
-				//val = StringToInt(val, platform).ToString();
+				type = Token.Type.CONST_INT;
 			}
-
-			type = Token.Type.DOUBLE;
 
 			if (IsAlpha(buf.Peek()))
 			{
@@ -358,7 +464,7 @@ namespace Compiler
 			}
 			else if (IsOperator(buf.Peek()))
 			{
-				if ((buf.Peek() == '=' && "+-/%*<>|&^".IndexOf((char)ch) > -1)  // += -= /= и тд
+				if ((buf.Peek() == '=' && "+-/%*<>|&^!".IndexOf((char)ch) > -1)  // += -= /= и тд
 					|| (ch == '-' && buf.Peek() == '>') // ->
 					|| (buf.Peek() == ch && "+-<>=|&.".IndexOf((char)buf.Peek()) > -1)) // ++ -- >> и тд
 				{
@@ -375,6 +481,7 @@ namespace Compiler
 						ReadInValue();
 					}
 				}
+
 			}
 
 		}
@@ -413,12 +520,11 @@ namespace Compiler
 
 						return StringToInt(result, 16);
 					default:
-						if (ch != '0')
-						{
-							throw_exception("недопустимый символ \"" + (char)buf.Peek() + "\" для основания \"8\"");
-						}
+						int i = 0;
+						while (IsOctal(buf.Peek()) && i < 3) { result += (char)buf.Read(); i++; };
 
-						while (IsOctal(buf.Peek())) { result += (char)buf.Read(); };
+						if(i == 0)
+							throw_exception("недопустимый символ \"" + (char)buf.Peek() + "\" для основания \"8\"");
 
 						return StringToInt(result, 8);
 				}
@@ -480,10 +586,13 @@ namespace Compiler
 			else if (IsAlpha(ch))
 			{
 				GetIdentificator();
+
+				Object keyword = Token.terms[val];
+				type = keyword == null? Token.Type.IDENTIFICATOR: (Token.Type)keyword;
 			}
 			else if (ch == '.')
 			{
-				type = Token.Type.DOUBLE;
+				type = Token.Type.CONST_DOUBLE;
 				GetFloat();
 			}
 			else if (IsSeparator(ch))
@@ -498,23 +607,30 @@ namespace Compiler
 			}
 			else if (ch == '\'')
 			{
-				type = Token.Type.CHAR;
+				type = Token.Type.CONST_CHAR;
 				GetChar();
 			}
 			else if (ch == '\"')
 			{
-				type = Token.Type.STRING;
+				type = Token.Type.CONST_STRING;
 				GetString();
 			}
-
-
-			if (type == Token.Type.NONE)
+			else
 			{
-				buf.Read();
 				throw_exception("недопустимый символ \"" + (char)ch + "\"");
 			}
 
-			return new Token(pos, line, type, val);
+			return new Token(pos, line, type, val);;
 		}
-   }
+		
+		public int GetLine()
+		{
+			return buf.GetLine();
+		}
+
+		public int GetPos()
+		{
+			return buf.getPos();
+		}
+	}
 }

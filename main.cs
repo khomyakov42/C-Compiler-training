@@ -5,7 +5,7 @@ using System.Text;
 using System.IO;
 
 namespace Compiler{
-   class Program
+	class Program
    {
 		const string header = "Compiler by Homyakov Sergey, FEFU School of Natural Sciences, b8303a, 2011";
 
@@ -29,34 +29,16 @@ namespace Compiler{
       }
 
 		static void Compilation(string filename){
+			FileStream file = new FileStream(@filename, FileMode.Open, FileAccess.Read);
+			Scaner scaner = new Scaner(file);
+			Parser parser = new Parser(scaner);
 			try
 			{
-				FileStream file = new FileStream(@filename, FileMode.Open, FileAccess.Read);
-				Scaner scaner = new Scaner(file);
-				Token token = new Token();
-
-				do
-				{
-
-					try
-					{
-						token = scaner.Read();
-						Console.WriteLine(token.ToString());
-					}
-					catch (Exception es)
-					{
-						Console.WriteLine(es.Message);
-						continue;
-					}
-
-				} while (token.type != Token.Type.EOF);
-
-				
+				parser.Parse();
 			}
 			catch (Exception e)
 			{
-				Console.WriteLine(e.Message);
-				return;
+				Console.Write(e.Message);
 			}
 		}
    }
