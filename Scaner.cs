@@ -131,7 +131,7 @@ namespace Compiler
 
    class Scaner
    {
-		class Exception : System.Exception
+		public class Exception : System.Exception
 		{
 			public Exception(string message, int line, int pos) : 
 				base("Лексическая ошибка в строке " + line + " позиции " + pos + ": " + message) { }
@@ -140,7 +140,7 @@ namespace Compiler
 		class Buffer: StreamReader
 		{
 			public const int EOF = -1;
-			private int pos = 0, line = 1;
+			private int pos = 1, line = 1;
 
 			public Buffer(Stream stream) : base(stream) {}
 
@@ -150,7 +150,7 @@ namespace Compiler
 
 				if (ch == '\n')
 				{
-					line++; pos = 0;
+					line++; pos = 1;
 				}
 				else
 					pos++;
@@ -170,8 +170,11 @@ namespace Compiler
 		}
 
 		Buffer buf;
+		int line = 1, pos = 1;
 		string val;
 		Token.Type type;
+
+		Token next_token = null;
 
       public Scaner(System.IO.Stream istream) { 
 			buf = new Buffer(istream);
@@ -188,7 +191,7 @@ namespace Compiler
 		{
 			int pos = buf.getPos(), line = buf.GetLine();
 
-			while (!IsWhite(buf.Peek()) && buf.Peek() != -1) { buf.Read(); };
+			while (!IsWhite(buf.Peek()) && buf.Peek() != -1 && buf.Peek() != ';') { buf.Read(); };
 
 			throw new Exception(s, line, pos);
 		}
@@ -564,14 +567,14 @@ namespace Compiler
 
 #endregion
 
-		public Token Read()
+		private Token Next()
 		{
 			type = Token.Type.NONE;
 			val = "";
 
 			while (IsWhite(buf.Peek())) { buf.Read(); }
 
-			int line = buf.GetLine(), pos = buf.getPos() + 1;
+			int line = buf.GetLine(), pos = buf.getPos();
 
 			int ch = buf.Peek();
 
@@ -622,15 +625,41 @@ namespace Compiler
 
 			return new Token(pos, line, type, val);;
 		}
-		
+
+		public Token Read()
+		{
+			if (next_token == null)
+			{
+				line = buf.GetLine();
+				pos = buf.getPos();
+				next_token = Next();
+			}
+
+			Token res = next_token;
+			next_token = null;
+			return res;
+		}
+
+		public Token Peek()
+		{
+			if (next_token == null)
+			{
+				line = buf.GetLine();
+				pos = buf.getPos();
+				next_token = Next();
+			}
+
+			return next_token;
+		}
+
 		public int GetLine()
 		{
-			return buf.GetLine();
+			return line;
 		}
 
 		public int GetPos()
 		{
-			return buf.getPos();
+			return pos;
 		}
 	}
 }
