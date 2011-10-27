@@ -8,32 +8,18 @@ namespace Compiler
 {
 	class SynObj
 	{
+		public enum Type
+		{
+			OP_PREFIX, OP_POSTFIX, OP_INFIX, OP_ASSIGN, OP_CAST, OP_TERN, F_CALL, CONST, IDENTIFIER
+		};
+
 		public class Exception : System.Exception
 		{
 			public Exception(string s) : base(s) { }
 		}
 
-		public enum Type 
-		{
-			OP_PREFIX, OP_POSTFIX, OP_INFIX, OP_ASSIGN, OP_CAST, OP_TERN, F_CALL, CONST, IDENTIFIER
-		};
-
-		public Type type;
-		public Token token;
 		public ArrayList children = new ArrayList();
-
-		protected void AddChild(SynObj syn)
-		{
-			if(syn != null)
-			{
-				children.Add(syn);
-			}
-		}
-
-		public override string ToString()
-		{
-			return token.strval;
-		}
+		public Type type;
 
 		public static Token CheckToken(Token t, Token.Type t_type, string s)
 		{
@@ -64,16 +50,23 @@ namespace Compiler
 		}
 	}
 
-	class Expr : SynObj
+	#region expression
+
+	class SynExpr: SynObj
 	{
-		public Expr(ArrayList expr)
-		{
-			children = expr;
-		}
+		public Token token;
 
 		public override string ToString()
 		{
-			return "EXPR";
+			return token.strval;
+		}
+
+		protected void AddChild(SynObj syn)
+		{
+			if (syn != null)
+			{
+				children.Add(syn);
+			}
 		}
 	}
 
@@ -85,7 +78,7 @@ namespace Compiler
 		}
 	}
 
-	class ConstExpr : SynObj
+	class ConstExpr : SynExpr
 	{
 		public ConstExpr(Token t)
 		{
@@ -94,7 +87,7 @@ namespace Compiler
 		}
 	}
 
-	class IdentExpr : SynObj
+	class IdentExpr : SynExpr
 	{
 		public IdentExpr(Token t)
 		{
@@ -103,7 +96,7 @@ namespace Compiler
 		}
 	}
 
-	class TypeNameExp : SynObj
+	class TypeNameExp : SynExpr
 	{
 		public TypeNameExp(Token t)
 		{
@@ -112,7 +105,7 @@ namespace Compiler
 		}
 	}
 
-	abstract class UnaryOper : SynObj
+	abstract class UnaryOper : SynExpr
 	{
 		public UnaryOper(Token op, SynObj opd)
 		{
@@ -135,7 +128,7 @@ namespace Compiler
 		override public string ToString() { return "@" + token.strval; }
 	}
 
-	class BinaryOper : SynObj
+	class BinaryOper : SynExpr
 	{
 		public BinaryOper(Token op, SynObj l, SynObj r)
 		{
@@ -146,7 +139,7 @@ namespace Compiler
 		}
 	}
 
-	class CallOper : SynObj
+	class CallOper : SynExpr
 	{
 
 		class ListArgs: SynObj
@@ -175,7 +168,7 @@ namespace Compiler
 		}
 	}
 
-	class RefOper : SynObj
+	class RefOper : SynExpr
 	{
 		public RefOper(Token op, SynObj l, SynObj r)
 		{
@@ -187,23 +180,7 @@ namespace Compiler
 		}
 	}
 
-	/*class CastOper : SynObj
-	{
-		public CastOper(SynObj type_cast, SynObj opnd)
-		{
-			type = Type.OP_CAST;
-			AddChild(opnd);
-			AddChild(type_cast);
-		}
-
-		public override string ToString()
-		{
-			return "CAST";
-		}
-	}
-	*/
-	
-	class TerOper : SynObj
+	class TerOper : SynExpr
 	{
 		public TerOper(SynObj opnd, SynObj branch1, SynObj branch2)
 		{
@@ -218,4 +195,45 @@ namespace Compiler
 			return "?:";
 		}
 	}
+
+	class SynExrList : SynExpr
+	{
+		public SynExrList(ArrayList list)
+		{
+			children = list;
+		}
+
+		public override string ToString()
+		{
+			return "EXPR";
+		}
+	}
+
+#endregion
+
+	#region statement
+
+	class SynStmt : SynObj
+	{
+		string stmt = "";
+		override public string ToString()
+		{
+			return 
+		}
+	}
+
+	class StmtExpr : 
+	{
+		public StmtExpr(ArrayList ch)
+		{
+			children = ch;
+		}
+
+		public override string ToString()
+		{
+			return "EXPR";
+		}
+	}
+
+	#endregion
 }

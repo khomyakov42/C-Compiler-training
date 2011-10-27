@@ -46,7 +46,7 @@ namespace Compiler
 
 		public void Parse()
 		{
-			SynObj tree = new Root();
+			Root tree = new Root();
 
 			do
 			{
@@ -100,7 +100,7 @@ namespace Compiler
 				scan.Read();
 			}
 
-			return expr_list.Count == 0? null : new Expr(expr_list);
+			return expr_list.Count == 0? null : new StmtExpr(expr_list);
 		}
 
 		private SynObj ParseBinaryOper(int level, SynObj lnode)
@@ -335,6 +335,32 @@ namespace Compiler
 			{
 				Console.Write('\n');
 				printTree((SynObj)node.children[i], level + 1, i == node.children.Count - 1);
+			}
+		}
+
+		#endregion
+
+		#region parse declaration
+
+		private SynObj ParseDeclarationSpecifier()
+		{
+			switch (scan.Peek().type)
+			{
+				case Token.Type.KW_TYPEDEF:
+				case Token.Type.KW_EXTERN:
+				case Token.Type.KW_STATIC:
+					return null;
+				case Token.Type.KW_VOID:
+				case Token.Type.KW_CHAR:
+				case Token.Type.KW_DOUBLE:
+				case Token.Type.KW_INT:
+				case Token.Type.KW_ENUM:
+				case Token.Type.KW_STRUCT:
+					return null;
+				case Token.Type.KW_CONST:
+					return null;
+				default:
+					return null;
 			}
 		}
 
