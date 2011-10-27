@@ -18,7 +18,7 @@ namespace Compiler
 
 		private Token CheckToken(Token t, Token.Type type)
 		{
-			return SynObj.CheckToken(t, type, Token.type_to_terms[type].ToString());
+			return SynExpr.CheckToken(t, type, Token.type_to_terms[type].ToString());
 		}
 
 		public Parser(Scaner sc)
@@ -54,9 +54,9 @@ namespace Compiler
 				{
 					try
 					{
-						tree.children.Add(ParseStmExpression());
+						tree.children.Add(ParseStmt());
 					}
-					catch (SynObj.Exception e)
+					catch (SynExpr.Exception e)
 					{
 						Console.WriteLine("Ошибка в строке " + scan.GetLine() + " позиции " + scan.GetPos() + ": " + e.Message);
 						PassExpr();
@@ -77,14 +77,19 @@ namespace Compiler
 
 		#region parse expression
 
-		private SynObj ParseExpression()
+		private SynExpr ParseExpression(bool bind = true)
 		{
-			SynObj node = null;
+			SynExpr node = null;
 			ArrayList expr_list = new ArrayList();
 
 			while(true)
 			{
 				node = ParseUnaryExpr();
+
+				if (node == null && !bind)
+				{
+					return new ExprList(expr_list);
+				}
 				
 				node = ParseBinaryOper(0, node);
 				if (node != null)
@@ -100,20 +105,20 @@ namespace Compiler
 				scan.Read();
 			}
 
-			return expr_list.Count == 0? null : new StmtExpr(expr_list);
+			return expr_list.Count == 0 ? null : new ExprList(expr_list);
 		}
 
-		private SynObj ParseBinaryOper(int level, SynObj lnode)
+		private SynExpr ParseBinaryOper(int level, SynExpr lnode)
 		{
 			while (true)
 			{
 
-				SynObj.CheckSynObj(lnode, "требуется выражение");
+				SynExpr.CheckSynObj(lnode, "требуется выражение");
 
 				if (scan.Peek().type == Token.Type.QUESTION)
 				{
 					scan.Read();
-					SynObj expr = ParseExpression();
+					SynExpr expr = ParseExpression();
 					CheckToken(scan.Peek(), Token.Type.COLON);
 					scan.Read();
 					lnode = new TerOper(lnode, expr, ParseExpression()/*ParseNotAssignmentExpression()*/);
@@ -128,7 +133,7 @@ namespace Compiler
 
 				Token oper = scan.Read();
 
-				SynObj rnode = SynObj.CheckSynObj(ParseUnaryExpr(), "требуется выражение");
+				SynExpr rnode = (SynExpr)SynObj.CheckSynObj(ParseUnaryExpr(), "требуется выражение");
 
 				int level_next_oper = GetOperatorPriority(scan.Peek());
 
@@ -148,7 +153,7 @@ namespace Compiler
 			}
 		}
 
-		private SynObj ParsePrimaryExpr()
+		private SynExpr ParsePrimaryExpr()
 		{
 			switch (scan.Peek().type)
 			{
@@ -163,7 +168,7 @@ namespace Compiler
 
 				case Token.Type.LPAREN:
 					scan.Read();
-					SynObj res = ParseExpression();
+					SynExpr res = ParseExpression();
 
 					CheckToken(scan.Read(), Token.Type.RPAREN);
 					return res;
@@ -173,9 +178,9 @@ namespace Compiler
 			}
 		}
 
-		private SynObj ParsePostfixExpr()
+		private SynExpr ParsePostfixExpr()
 		{
-			SynObj node = ParsePrimaryExpr();
+			SynExpr node = ParsePrimaryExpr();
 			
 			while(true){
 				
@@ -201,7 +206,7 @@ namespace Compiler
 							break;
 						}
 
-						SynObj args = ParseExpression();
+						SynExpr args = ParseExpression();
 						CheckToken(scan.Peek(), Token.Type.RPAREN);
 						scan.Read();
 						node = new CallOper(node, args == null? new ArrayList(): args.children);
@@ -220,7 +225,7 @@ namespace Compiler
 			}
 		}
 
-		private SynObj ParseUnaryExpr()
+		private SynExpr ParseUnaryExpr()
 		{
 			switch (scan.Peek().type)
 			{
@@ -245,7 +250,7 @@ namespace Compiler
 					}
 
 					scan.Read();
-					SynObj res = new PrefixOper(kw, ParseTypeName());
+					SynExpr res = new PrefixOper(kw, ParseTypeName());
 					CheckToken(scan.Peek(), Token.Type.RPAREN);
 					scan.Read();
 					return res;
@@ -255,7 +260,7 @@ namespace Compiler
 			}
 		}
 
-		private SynObj ParseTypeName()
+		private SynExpr ParseTypeName()
 		{
 			switch (scan.Peek().type)
 			{
@@ -340,41 +345,141 @@ namespace Compiler
 
 		#endregion
 
-		#region parse declaration
-
-		private SynObj ParseDeclarationSpecifier()
-		{
-			switch (scan.Peek().type)
-			{
-				case Token.Type.KW_TYPEDEF:
-				case Token.Type.KW_EXTERN:
-				case Token.Type.KW_STATIC:
-					return null;
-				case Token.Type.KW_VOID:
-				case Token.Type.KW_CHAR:
-				case Token.Type.KW_DOUBLE:
-				case Token.Type.KW_INT:
-				case Token.Type.KW_ENUM:
-				case Token.Type.KW_STRUCT:
-					return null;
-				case Token.Type.KW_CONST:
-					return null;
-				default:
-					return null;
-			}
-		}
-
-		#endregion
-
 		#region parse statment
 
 		private SynObj ParseStmExpression()
 		{
-			SynObj res = ParseExpression();
+			SynObj res = ParseExpression(false);
 			CheckToken(scan.Read(), Token.Type.SEMICOLON);
 			return res;
 		}
 
+		private SynObj ParseStmt()
+		{
+			SynObj node = null;
+
+			switch (scan.Peek().type)
+			{
+				case Token.Type.KW_WHILE:
+					scan.Read();
+					CheckToken(scan.Read(), Token.Type.LPAREN);
+					node = new StmtWHILE(ParseExpression());
+					CheckToken(scan.Read(), Token.Type.RPAREN);
+					((StmtWHILE)node).SetBlock(ParseStmt());
+					break;
+
+				case Token.Type.KW_DO:
+					scan.Read();
+					node = new StmtDO(ParseStmt());
+					CheckToken(scan.Read(), Token.Type.LPAREN);
+					((StmtDO)node).SetCond(ParseExpression());
+					CheckToken(scan.Read(), Token.Type.RPAREN);
+					break;
+
+				case Token.Type.KW_FOR:
+					scan.Read();
+					CheckToken(scan.Read(), Token.Type.LPAREN);
+					node = new StmtFOR();
+					((StmtFOR)node).SetCounter(ParseStmExpression());
+					((StmtFOR)node).SetCond(ParseStmExpression());
+
+					if (scan.Peek().type != Token.Type.RPAREN)
+					{
+						((StmtFOR)node).SetIncriment(ParseExpression());
+					}
+
+					CheckToken(scan.Read(), Token.Type.RPAREN);
+					((StmtFOR)node).SetBlock(ParseStmt());
+					break;
+
+				case Token.Type.KW_IF:
+					scan.Read();
+					CheckToken(scan.Read(), Token.Type.LPAREN);
+					node = new StmtIF(ParseExpression());
+					CheckToken(scan.Read(), Token.Type.RPAREN);
+					((StmtIF)node).SetBranchTrue(ParseStmt());
+					if (scan.Peek().type == Token.Type.KW_ELSE)
+					{
+						scan.Read();
+						((StmtIF)node).SetBranchFalse(ParseStmt());
+					}
+					break;
+
+				case Token.Type.KW_SWITCH:
+					scan.Read();
+					CheckToken(scan.Read(), Token.Type.LPAREN);
+					node = new StmtSWITCH(ParseExpression());
+
+					CheckToken(scan.Read(), Token.Type.RPAREN);
+
+					bool one_loop = scan.Peek().type != Token.Type.LBRACE;
+
+					if (!one_loop)
+					{
+						scan.Read();
+					}
+
+					while (scan.Peek().type != Token.Type.RBRACE)
+					{
+						if (scan.Peek().type != Token.Type.KW_CASE && scan.Peek().type != Token.Type.KW_DEFAULT)
+						{
+							SynObj.CheckToken(scan.Read(), Token.Type.KW_DEFAULT, "требуется оператор \"case\" или \"default\"");
+						}
+
+						scan.Read();
+
+						StmtCASE c = new StmtCASE(ParseExpression()); // здесь должно быть константное выражение
+						CheckToken(scan.Read(), Token.Type.COLON);
+						c.SetBlock(ParseStmt());
+						((StmtSWITCH)node).AddCase(c);
+
+						if(one_loop)
+						{
+							break;
+						}
+					}
+
+					if(!one_loop)
+					{
+						CheckToken(scan.Read(), Token.Type.RBRACE);
+					}
+					break;
+
+				case Token.Type.LBRACE:
+					scan.Read();
+					ArrayList stmts = new ArrayList();
+					while (scan.Peek().type != Token.Type.RBRACE && scan.Peek().type != Token.Type.EOF)
+					{
+						stmts.Add(ParseStmt());
+					}
+					CheckToken(scan.Read(), Token.Type.RBRACE);
+					node = new StmtBLOCK(stmts);
+					break;
+
+				case Token.Type.KW_RETURN:
+					scan.Read();
+					node = new StmtRETURN(ParseStmExpression());
+					break;
+
+				case Token.Type.KW_BREAK:
+					scan.Read();
+					node = new StmtBREAK();
+					CheckToken(scan.Read(), Token.Type.SEMICOLON);
+					break;
+
+				case Token.Type.KW_CONTINUE:
+					scan.Read();
+					node = new StmtCONTINUE();
+					CheckToken(scan.Read(), Token.Type.SEMICOLON);
+					break;
+
+				default:
+					node = ParseStmExpression();
+					break;
+			}
+
+			return node;
+		}
 		#endregion
 	}
 }

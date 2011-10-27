@@ -8,18 +8,36 @@ namespace Compiler
 {
 	class SynObj
 	{
-		public enum Type
-		{
-			OP_PREFIX, OP_POSTFIX, OP_INFIX, OP_ASSIGN, OP_CAST, OP_TERN, F_CALL, CONST, IDENTIFIER
-		};
-
 		public class Exception : System.Exception
 		{
 			public Exception(string s) : base(s) { }
 		}
 
-		public ArrayList children = new ArrayList();
+		public enum Type 
+		{
+			OP_PREFIX, OP_POSTFIX, OP_INFIX, OP_ASSIGN, OP_CAST, OP_TERN, F_CALL, CONST, IDENTIFIER,
+
+			STMT_IF, STMT_BLOCK, STMT_FOR, STMT_WHILE, STMT_DO, STMT_SWITCH, STMT_CASE, STMT_RETURN, STMT_BREAK, STMT_CONTINUE
+		};
+
 		public Type type;
+		public ArrayList children = new ArrayList();
+
+		protected void AddChild(SynObj syn)
+		{
+			if(syn != null)
+			{
+				children.Add(syn);
+			}
+		}
+
+		protected void InsertChildren(int pos, SynObj syn)
+		{
+			if(syn != null)
+			{
+				children.Insert(pos, syn);
+			}
+		}
 
 		public static Token CheckToken(Token t, Token.Type t_type, string s)
 		{
@@ -31,7 +49,7 @@ namespace Compiler
 			return t;
 		}
 
-		public static SynObj CheckSynObj(SynObj obj, string s)
+		public static SynObj CheckSynObj(SynObj obj, string s = "требуется выражение")
 		{
 			if (obj == null)
 			{
@@ -50,7 +68,7 @@ namespace Compiler
 		}
 	}
 
-	#region expression
+#region Expression
 
 	class SynExpr: SynObj
 	{
@@ -60,19 +78,25 @@ namespace Compiler
 		{
 			return token.strval;
 		}
+	}
 
-		protected void AddChild(SynObj syn)
+	class ExprList : SynExpr
+	{
+		public ExprList(ArrayList expr)
 		{
-			if (syn != null)
-			{
-				children.Add(syn);
-			}
+			children = expr;
+		}
+
+		public override string ToString()
+		{
+			return "EXPR";
 		}
 	}
 
 	class AssignOper : BinaryOper
 	{
-		public AssignOper(Token op, SynObj l, SynObj r) : base(op, l, r)
+		public AssignOper(Token op, SynExpr l, SynExpr r)
+			: base(op, l, r)
 		{
 			type = Type.OP_ASSIGN;
 		}
@@ -105,9 +129,9 @@ namespace Compiler
 		}
 	}
 
-	abstract class UnaryOper : SynExpr
+	class UnaryOper : SynExpr
 	{
-		public UnaryOper(Token op, SynObj opd)
+		public UnaryOper(Token op, SynExpr opd)
 		{
 			token = op;
 			AddChild(CheckSynObj(opd, "требуется выражение"));
@@ -116,21 +140,21 @@ namespace Compiler
 
 	class PrefixOper : UnaryOper
 	{
-		public PrefixOper(Token op, SynObj opnd) : base(op, opnd) { type = Type.OP_PREFIX; }
+		public PrefixOper(Token op, SynExpr opnd) : base(op, opnd) { type = Type.OP_PREFIX; }
 
 		override public string ToString() { return token.strval + "@"; }
 	}
 
 	class PostfixOper : UnaryOper
 	{
-		public PostfixOper(Token op, SynObj opnd) : base(op, opnd) { type = Type.OP_POSTFIX; }
+		public PostfixOper(Token op, SynExpr opnd) : base(op, opnd) { type = Type.OP_POSTFIX; }
 
 		override public string ToString() { return "@" + token.strval; }
 	}
 
 	class BinaryOper : SynExpr
 	{
-		public BinaryOper(Token op, SynObj l, SynObj r)
+		public BinaryOper(Token op, SynExpr l, SynExpr r)
 		{
 			type = Type.OP_INFIX;
 			token = op;
@@ -170,7 +194,7 @@ namespace Compiler
 
 	class RefOper : SynExpr
 	{
-		public RefOper(Token op, SynObj l, SynObj r)
+		public RefOper(Token op, SynExpr l, SynExpr r)
 		{
 			type = Type.OP_POSTFIX;
 			token = op;
@@ -182,7 +206,7 @@ namespace Compiler
 
 	class TerOper : SynExpr
 	{
-		public TerOper(SynObj opnd, SynObj branch1, SynObj branch2)
+		public TerOper(SynExpr opnd, SynExpr branch1, SynExpr branch2)
 		{
 			type = Type.OP_TERN;
 			AddChild(opnd);
@@ -196,44 +220,186 @@ namespace Compiler
 		}
 	}
 
-	class SynExrList : SynExpr
-	{
-		public SynExrList(ArrayList list)
-		{
-			children = list;
-		}
+#endregion 
 
+#region Statement
+
+	class SynStmt : SynObj
+	{
 		public override string ToString()
 		{
-			return "EXPR";
+			switch(type)
+			{
+				case Type.STMT_IF:
+					return "IF";
+				case Type.STMT_BLOCK:
+					return "BLOCK";
+				case Type.STMT_CASE:
+					return "CASE";
+				case Type.STMT_SWITCH:
+					return "SWITCH";
+				case Type.STMT_WHILE:
+					return "WHILE";
+				case Type.STMT_DO:
+					return "DO WHILE";
+				case Type.STMT_FOR:
+					return "FOR";
+				case Type.STMT_RETURN:
+					return "RETURN";
+				case Type.STMT_CONTINUE:
+					return "CONTINUE";
+				case Type.STMT_BREAK:
+					return "BREAK";
+				default:
+					return "";
+			}
+		}
+	}
+
+	class StmtIF : SynStmt
+	{
+		public StmtIF(SynExpr opnd)
+		{
+			type = Type.STMT_IF;
+			AddChild(CheckSynObj(opnd));
+		}
+
+		public void SetBranchTrue(SynObj br)
+		{
+			children.Insert(1, CheckSynObj(br));
+		}
+
+		public void SetBranchFalse(SynObj br) 
+		{
+			children.Insert(2, br);
+		}
+	}
+
+	class StmtBLOCK : SynStmt
+	{
+		public StmtBLOCK(ArrayList stmts)
+		{
+			type = Type.STMT_BLOCK;
+			children = stmts;
+		}
+	}
+
+	class StmtFOR : SynStmt
+	{
+		class Counter : SynObj { }
+
+		public StmtFOR()
+		{
+			type = Type.STMT_FOR;
+			AddChild(new Counter());
+		}
+
+		public void SetCounter(SynObj opnd)
+		{
+			GetCounter().children.Insert(0, CheckSynObj(opnd));
+		}
+
+		public void SetCond(SynObj opnd)
+		{
+			GetCounter().children.Insert(1, CheckSynObj(opnd));
+		}
+
+		public void SetIncriment(SynObj opnd)
+		{
+			GetCounter().children.Insert(2, opnd);
+		}
+
+		public void SetBlock(SynObj opnd)
+		{
+			children.Insert(1, CheckSynObj(opnd));
+		}
+
+		private Counter GetCounter()
+		{
+			return (Counter)children[0];
+		}
+	}
+
+	class StmtWHILE : SynStmt
+	{
+		public StmtWHILE(SynObj cond)
+		{
+			type = Type.STMT_WHILE;
+			InsertChildren(0, CheckSynObj(cond));
+		}
+
+		public void SetBlock(SynObj opnd)
+		{
+			InsertChildren(1, CheckSynObj(opnd));
+		}
+	}
+
+	class StmtDO : SynStmt
+	{
+		public StmtDO(SynObj block)
+		{
+			type = Type.STMT_DO;
+			InsertChildren(1, CheckSynObj(block));
+		}
+
+		public void SetCond(SynObj cond)
+		{
+			InsertChildren(0, CheckSynObj(cond));
+		}
+	}
+
+	class StmtCASE : SynStmt
+	{
+		public StmtCASE(SynObj expr)
+		{
+			type = Type.STMT_CASE;
+			InsertChildren(0, CheckSynObj(expr));
+		}
+
+		public void SetBlock(SynObj block)
+		{
+			InsertChildren(1, block);
+		}
+	}
+
+	class StmtSWITCH : SynStmt
+	{
+		public StmtSWITCH(SynObj obj)
+		{
+			type = Type.STMT_SWITCH;
+			InsertChildren(0, CheckSynObj(obj));
+		}
+
+		public void AddCase(StmtCASE c)
+		{
+			AddChild(CheckSynObj(c));
+		}
+	}
+
+	class StmtRETURN : SynStmt
+	{
+		public StmtRETURN(SynObj expr)
+		{
+			type = Type.STMT_RETURN;
+			AddChild(expr);
+		}
+	}
+
+	class StmtCONTINUE : SynStmt 
+	{
+		public StmtCONTINUE()
+		{
+			type = Type.STMT_CONTINUE;
+		}
+	}
+
+	class StmtBREAK : SynStmt 
+	{
+		public StmtBREAK()
+		{
+			type = Type.STMT_BREAK;
 		}
 	}
 
 #endregion
-
-	#region statement
-
-	class SynStmt : SynObj
-	{
-		string stmt = "";
-		override public string ToString()
-		{
-			return 
-		}
-	}
-
-	class StmtExpr : 
-	{
-		public StmtExpr(ArrayList ch)
-		{
-			children = ch;
-		}
-
-		public override string ToString()
-		{
-			return "EXPR";
-		}
-	}
-
-	#endregion
 }
