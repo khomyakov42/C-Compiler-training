@@ -1,0 +1,4 @@
+(int)x;
+(int)(char)x;
+!(int)x;
+(int)++x;

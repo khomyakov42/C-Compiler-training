@@ -15,7 +15,7 @@ namespace Compiler
 
 		public enum Type 
 		{
-			OP_PREFIX, OP_POSTFIX, OP_INFIX, OP_ASSIGN, OP_CAST, OP_TERN, F_CALL, CONST, IDENTIFIER,
+			OP_PREFIX, OP_POSTFIX, OP_INFIX, OP_ASSIGN, OP_CAST, OP_TERN, OP_SIZEOF, F_CALL, CONST, IDENTIFIER,
 
 			STMT_IF, STMT_BLOCK, STMT_FOR, STMT_WHILE, STMT_DO, STMT_SWITCH, STMT_CASE, STMT_RETURN, STMT_BREAK, STMT_CONTINUE
 		};
@@ -193,7 +193,7 @@ namespace Compiler
 
 		public void SetOperand(SynExpr operand)
 		{
-			this.operand = operand;
+			this.operand = (SynExpr)CheckSynObj(operand);
 		}
 	}
 
@@ -314,6 +314,33 @@ namespace Compiler
 			return s;
 		}
 	}
+
+	class CastExpr : SynExpr
+	{
+		SynObj type_name, operand;
+
+		public CastExpr(SynObj type_name)
+		{
+			type = Type.OP_CAST;
+			this.type_name = CheckSynObj(type_name);
+		}
+
+		public void SetOperand(SynExpr operand)
+		{
+			this.operand = CheckSynObj(operand);
+		}
+
+		public override string ToString(int level = 0)
+		{
+			return getIndentString(level) + SEP + "CAST" + SEP + type_name.ToString(level + 1) + operand.ToString(level + 1);
+		}
+	}
+
+	class SizeofOper : PrefixOper
+	{
+		public SizeofOper(Token op) : base(op) { type = Type.OP_SIZEOF; }
+	}
+
 
 #endregion 
 

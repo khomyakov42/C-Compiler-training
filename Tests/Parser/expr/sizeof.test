@@ -1,4 +1,3 @@
 sizeof(int);
 sizeof x;
 sizeof(x);
-sizeof int;

@@ -115,7 +115,7 @@ namespace Compiler
 			while (true)
 			{
 
-				SynExpr.CheckSynObj(lnode, "требуется выражение");
+				SynExpr.CheckSynObj(lnode);
 
 				if (scan.Peek().type == Token.Type.QUESTION)
 				{
@@ -143,7 +143,7 @@ namespace Compiler
 
 				Token oper = scan.Read();
 
-				SynExpr rnode = (SynExpr)SynObj.CheckSynObj(ParseUnaryExpr(), "требуется выражение");
+				SynExpr rnode = (SynExpr)SynObj.CheckSynObj(ParseUnaryExpr());
 
 				int level_next_oper = GetOperatorPriority(scan.Peek());
 
@@ -193,9 +193,9 @@ namespace Compiler
 			}
 		}
 
-		private SynExpr ParsePostfixExpr()
+		private SynExpr ParsePostfixExpr(SynExpr expr_node = null)
 		{
-			SynExpr node = ParsePrimaryExpr(), res = null;
+			SynExpr node = expr_node == null? ParsePrimaryExpr(): expr_node, res = null;
 
 
 			while(true){
@@ -228,11 +228,11 @@ namespace Compiler
 						SynExpr args = ParseExpression();
 
 						CheckToken(scan.Peek(), Token.Type.RPAREN, true);
-						((CallOper)res).AddArgument(args); // нада сделать по нормальному что бы еще и ... можно было
+						((CallOper)res).AddArgument(args);
 						break;
 
 					case Token.Type.LBRACKET:
-						res = new RefOper(scan.Read());//, node, ParseExpression());
+						res = new RefOper(scan.Read());
 						((RefOper)res).SetParent(node);
 						((RefOper)res).SetChild(ParseExpression());
 
@@ -247,17 +247,15 @@ namespace Compiler
 			}
 		}
 
-		private SynExpr ParseUnaryExpr()
+		private SynExpr ParseUnaryExpr(bool prev_is_unary_oper = true)
 		{
 			PrefixOper node = null;
-
 			switch (scan.Peek().type)
 			{
-				
 				case Token.Type.OP_INC:
 				case Token.Type.OP_DEC:
 					node = new PrefixOper(scan.Read());
-					node.SetOperand(ParseUnaryExpr());
+					node.SetOperand(ParseUnaryExpr(false));
 					return node;
 
 				case Token.Type.OP_BIT_AND:
@@ -269,20 +267,44 @@ namespace Compiler
 					node = new PrefixOper(scan.Read());
 					node.SetOperand(ParseUnaryExpr());
 					return node;
-					
+				
+				case Token.Type.LPAREN:
+					scan.Read();
+					SynExpr res = null;
+
+					if (IsTypeName(scan.Peek()))
+					{
+						res = new CastExpr(ParseTypeName());
+						CheckToken(scan.Peek(), Token.Type.RPAREN, true);
+						((CastExpr)res).SetOperand(ParseUnaryExpr());
+						return res;
+					}
+
+					res = ParseExpression();
+					CheckToken(scan.Peek(), Token.Type.RPAREN, true);
+					return ParsePostfixExpr(res);
+
 				case Token.Type.KW_SIZEOF:
 					Token kw = scan.Read();
 
 					if (scan.Peek().type != Token.Type.LPAREN)
 					{
-						node = new PrefixOper(kw);
-						node.SetOperand(ParseUnaryExpr());
+						node = new SizeofOper(kw);
+						node.SetOperand(ParseUnaryExpr(false));
 						return node;
 					}
 
 					scan.Read();
-					node = new PrefixOper(kw);
-					node.SetOperand(ParseTypeName());
+					node = new SizeofOper(kw);
+					if (IsTypeName(scan.Peek()))
+					{
+						node.SetOperand(ParseTypeName());
+					}
+					else
+					{
+						node.SetOperand(ParseExpression());
+					}
+
 					CheckToken(scan.Peek(), Token.Type.RPAREN, true);
 					return node;
 
@@ -305,6 +327,20 @@ namespace Compiler
 
 				default:
 					return null;
+			}
+		}
+
+		private bool IsTypeName(Token t)
+		{
+			switch (t.type)
+			{
+				case Token.Type.KW_DOUBLE:
+				case Token.Type.KW_INT:
+				case Token.Type.KW_CHAR:
+				case Token.Type.KW_STRUCT:
+					return true;
+				default:
+					return false;
 			}
 		}
 

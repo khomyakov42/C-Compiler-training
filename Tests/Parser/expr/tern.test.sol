@@ -1,0 +1,48 @@
+
+list
+     ter_oper
+          a
+          list
+               b
+          list
+               c
+list
+     "*"
+          7
+          list
+               ter_oper
+                    "=="
+                         a
+                         b
+                    list
+                         c
+                    list
+                         d
+list
+     ter_oper
+          "=="
+               "+"
+                    5
+                    a
+               b
+          list
+               c
+          list
+               d
+list
+     ter_oper
+          "=="
+               a
+               b
+          list
+               ter_oper
+                    "=="
+                         b
+                         c
+                    list
+                         1
+                    list
+                         0
+          list
+               2
+

@@ -13,14 +13,12 @@ argument_expression_list = assignment_expression [',' argument_expression_list] 
 unary_expression =
 		postfix_expression |
 		('++' | '--') unary_expression |
-	еее	unary_operator cast_expression |
+	еее	unary_operator unary_expression |
+		unary_operator ( '(' type_name ')' )+ unary_expression|
 		SIZEOF ( unary_expression ) | ( '(' type_name ')' ) ;
 
 unary_operator =
 		'&' | '*' | '+' | '-' | '~' | '!' ;
-
-{# cast_expression = 
-		unary_expression | '(' type_name ')' cast_expression ; #}
 
 multiplicative_expression = 
 		cast_expression [('*' | '/' | '%') multiplicative_expression] ;
