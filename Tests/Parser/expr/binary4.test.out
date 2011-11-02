@@ -1,0 +1,44 @@
+
+list
+     "+"
+          a
+          "*"
+               b
+               c
+list
+     "+"
+          "*"
+               a
+               b
+          c
+list
+     "+"
+          "+"
+               a
+               "*"
+                    b
+                    c
+          d
+list
+     "+"
+          "*"
+               a
+               b
+          "*"
+               c
+               d
+list
+     "*"
+          a
+          list
+               "+"
+                    b
+                    c
+list
+     "*"
+          list
+               "+"
+                    a
+                    b
+          c
+

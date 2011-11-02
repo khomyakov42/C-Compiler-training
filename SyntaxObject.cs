@@ -6,7 +6,7 @@ using System.Text;
 
 namespace Compiler
 {
-	class SynObj
+	abstract class SynObj
 	{
 		public class Exception : System.Exception
 		{
@@ -21,23 +21,8 @@ namespace Compiler
 		};
 
 		public Type type;
-		public ArrayList children = new ArrayList();
-
-		protected void AddChild(SynObj syn)
-		{
-			if(syn != null)
-			{
-				children.Add(syn);
-			}
-		}
-
-		protected void InsertChildren(int pos, SynObj syn)
-		{
-			if(syn != null)
-			{
-				children.Insert(pos, syn);
-			}
-		}
+		protected const int INDENT = 5;
+		protected const char SEP = '\"';
 
 		public static Token CheckToken(Token t, Token.Type t_type, string s)
 		{
@@ -58,165 +43,275 @@ namespace Compiler
 
 			return obj;
 		}
+
+		public abstract string ToString(int level = 0);
+
+		protected string getIndentString(int level)
+		{
+			return '\n' + new String(' ', level * INDENT);
+		}
 	}
 
 	class Root : SynObj
 	{
-		public override string ToString()
+		ArrayList statments = new ArrayList();
+
+		public Root() { }
+
+		public void AddChild(SynObj stmt)
 		{
-			return "ROOT";
+			statments.Add(stmt);
+		}
+
+		public override string ToString(int level = 0)
+		{
+			string s = "";
+			foreach (var stmt in statments)
+			{
+				s += ((SynObj)stmt).ToString(0);
+			}
+			return s;
 		}
 	}
 
 #region Expression
 
-	class SynExpr: SynObj
-	{
-		public Token token;
-
-		public override string ToString()
-		{
-			return token.strval;
-		}
-	}
+	abstract class SynExpr: SynObj { }
 
 	class ExprList : SynExpr
 	{
-		public ExprList(ArrayList expr)
+		ArrayList list;
+		public ExprList(ArrayList exprs)
 		{
-			children = expr;
+			list = exprs;
 		}
 
-		public override string ToString()
+		override public string ToString(int level=0)
 		{
-			return "EXPR";
+			string s = getIndentString(level);
+			s += "list";
+
+			foreach (var ch in this.list)
+			{
+				s += ((SynExpr)ch).ToString(level + 1);
+			}
+
+			return s;
+		}
+	}
+
+	class BinaryOper : SynExpr
+	{
+		protected SynExpr lnode = null, rnode = null;
+		protected Token oper = null;
+
+		public BinaryOper(Token op)
+		{
+			type = Type.OP_INFIX;
+			oper = op;
+		}
+
+		public void SetLeftOperand(SynExpr l)
+		{
+			lnode = (SynExpr)CheckSynObj(l);
+		}
+
+		public void SetRightOperand(SynExpr r)
+		{
+			rnode = (SynExpr)CheckSynObj(r);
+		}
+
+		public override string ToString(int level = 0)
+		{
+			string s = getIndentString(level);
+			s += SEP + oper.strval + SEP;
+			s += lnode.ToString(level + 1);
+			s += rnode.ToString(level + 1);
+			return s;
 		}
 	}
 
 	class AssignOper : BinaryOper
 	{
-		public AssignOper(Token op, SynExpr l, SynExpr r)
-			: base(op, l, r)
+		public AssignOper(Token op)
+			: base(op)
 		{
 			type = Type.OP_ASSIGN;
 		}
 	}
 
-	class ConstExpr : SynExpr
+	class ConstExpr : VarExpr
 	{
 		public ConstExpr(Token t)
+			: base(t)
 		{
 			type = Type.CONST;
+		}
+	}
+
+	class VarExpr : SynExpr
+	{
+		protected Token token;
+
+		public VarExpr(Token t)
+		{
+			type = Type.IDENTIFIER;
 			token = t;
+		}
+
+		public override string ToString(int level = 0)
+		{
+			return getIndentString(level) + token.strval;
 		}
 	}
 
 	class IdentExpr : SynExpr
 	{
-		public IdentExpr(Token t)
-		{
-			type = Type.IDENTIFIER;
-			token = CheckToken(t, Token.Type.IDENTIFICATOR, "идентификатор");
-		}
-	}
+		protected Token token;
 
-	class TypeNameExp : SynExpr
-	{
-		public TypeNameExp(Token t)
+		public IdentExpr(Token t)
 		{
 			type = Type.IDENTIFIER;
 			token = t;
 		}
+
+		public override string ToString(int level = 0)
+		{
+			return getIndentString(level) + token.strval;
+		}
 	}
 
-	class UnaryOper : SynExpr
+	abstract class UnaryOper : SynExpr
 	{
-		public UnaryOper(Token op, SynExpr opd)
+		protected Token oper;
+		protected SynExpr operand;
+
+		public UnaryOper(Token op)
 		{
-			token = op;
-			AddChild(CheckSynObj(opd, "требуется выражение"));
+			oper = op;
+		}
+
+		public void SetOperand(SynExpr operand)
+		{
+			this.operand = operand;
 		}
 	}
 
 	class PrefixOper : UnaryOper
 	{
-		public PrefixOper(Token op, SynExpr opnd) : base(op, opnd) { type = Type.OP_PREFIX; }
+		public PrefixOper(Token op) : base(op) { type = Type.OP_PREFIX; }
 
-		override public string ToString() { return token.strval + "@"; }
+		public override string ToString(int level = 0)
+		{
+			string s = getIndentString(level);
+			s += SEP + oper.strval + "@" + SEP;
+			s += operand.ToString(level + 1);
+			return s;
+		}
 	}
 
 	class PostfixOper : UnaryOper
 	{
-		public PostfixOper(Token op, SynExpr opnd) : base(op, opnd) { type = Type.OP_POSTFIX; }
+		public PostfixOper(Token op) : base(op) { type = Type.OP_POSTFIX; }
 
-		override public string ToString() { return "@" + token.strval; }
-	}
-
-	class BinaryOper : SynExpr
-	{
-		public BinaryOper(Token op, SynExpr l, SynExpr r)
+		public override string ToString(int level = 0)
 		{
-			type = Type.OP_INFIX;
-			token = op;
-			AddChild(CheckSynObj(l, "требуется выражение"));
-			AddChild(CheckSynObj(r, "требуется выражение"));
+			string s = getIndentString(level);
+			s += SEP + "@" + oper.strval + SEP;
+			s += operand.ToString(level + 1);
+			return s;
 		}
 	}
 
 	class CallOper : SynExpr
 	{
+		SynExpr operand;
+		ArrayList args = new ArrayList();
 
-		class ListArgs: SynObj
-		{
-			public ListArgs(ArrayList args = null)
-			{
-				children = args;
-			}
-
-			public override string ToString()
-			{
-				return "ARGS";
-			}
-		}
-
-		public CallOper(SynObj opnd, ArrayList args = null)
+		public CallOper(SynExpr opnd)
 		{
 			type = Type.F_CALL;
-			AddChild(opnd);
-			AddChild(new ListArgs(args));
+			operand = opnd;
 		}
 
-		public override string ToString()
+		public void AddArgument(SynExpr arg)
 		{
-			return "CALL";
+			args.Add(arg);
 		}
-	}
 
-	class RefOper : SynExpr
-	{
-		public RefOper(Token op, SynExpr l, SynExpr r)
+		public override string ToString(int level = 0)
 		{
-			type = Type.OP_POSTFIX;
-			token = op;
-			
-			AddChild(CheckSynObj(l, "требуется выражение"));
-			AddChild(CheckSynObj(r, "требуется имя члена"));
+			string s = getIndentString(level);
+			s += "CALL";
+			s += operand.ToString(level + 1);
+
+			foreach (var arg in args)
+			{
+				s += ((SynObj)arg).ToString(level + 1);
+			}
+			return s;
 		}
 	}
 
 	class TerOper : SynExpr
 	{
-		public TerOper(SynExpr opnd, SynExpr branch1, SynExpr branch2)
+		SynExpr cond, lnode, rnode;
+
+		public TerOper(SynExpr cond)
 		{
 			type = Type.OP_TERN;
-			AddChild(opnd);
-			AddChild(CheckSynObj(branch1, "требуется выражение"));
-			AddChild(CheckSynObj(branch2, "требуется выражение"));
+			this.cond = cond;
 		}
 
-		public override string ToString()
+		public void SetTrueExpr(SynExpr node)
 		{
-			return "?:";
+			lnode = (SynExpr)CheckSynObj(node);
+		}
+
+		public void SetFalseExpr(SynExpr node)
+		{
+			rnode = (SynExpr)CheckSynObj(node);
+		}
+
+		public override string ToString(int level = 0)
+		{
+			string s = getIndentString(level);
+			s += "ter_oper";
+			s += cond.ToString(level + 1);
+			s += lnode.ToString(level + 1);
+			s += rnode.ToString(level + 1);
+			return s;
+		}
+	}
+
+	class RefOper : SynExpr
+	{
+		Token oper;
+		SynExpr parent, child;
+
+		public RefOper(Token op)
+		{
+			type = Type.OP_POSTFIX;
+			oper = op;
+		}
+
+		public void SetParent(SynExpr parent)
+		{
+			this.parent = (SynExpr)CheckSynObj(parent);
+		}
+
+		public void SetChild(SynExpr child)
+		{
+			this.child = (SynExpr)CheckSynObj(child, "требуется имя члена");
+		}
+
+		public override string ToString(int level = 0)
+		{
+			string s = getIndentString(level);
+			s += oper.strval;
+			s += parent.ToString(level + 1);
+			s += child.ToString(level + 1);
+			return s;
 		}
 	}
 
@@ -224,165 +319,176 @@ namespace Compiler
 
 #region Statement
 
-	class SynStmt : SynObj
-	{
-		public override string ToString()
-		{
-			switch(type)
-			{
-				case Type.STMT_IF:
-					return "IF";
-				case Type.STMT_BLOCK:
-					return "BLOCK";
-				case Type.STMT_CASE:
-					return "CASE";
-				case Type.STMT_SWITCH:
-					return "SWITCH";
-				case Type.STMT_WHILE:
-					return "WHILE";
-				case Type.STMT_DO:
-					return "DO WHILE";
-				case Type.STMT_FOR:
-					return "FOR";
-				case Type.STMT_RETURN:
-					return "RETURN";
-				case Type.STMT_CONTINUE:
-					return "CONTINUE";
-				case Type.STMT_BREAK:
-					return "BREAK";
-				default:
-					return "";
-			}
-		}
-	}
+	abstract class SynStmt : SynObj { }
 
 	class StmtIF : SynStmt
 	{
-		public StmtIF(SynExpr opnd)
+		SynExpr cond;
+		SynObj lnode, rnode;
+
+		public StmtIF(SynExpr cond)
 		{
 			type = Type.STMT_IF;
-			AddChild(CheckSynObj(opnd));
+			this.cond = (SynExpr)CheckSynObj(cond);
 		}
 
 		public void SetBranchTrue(SynObj br)
 		{
-			children.Insert(1, CheckSynObj(br));
+			lnode = CheckSynObj(br);
 		}
 
 		public void SetBranchFalse(SynObj br) 
 		{
-			children.Insert(2, br);
+			rnode = CheckSynObj(br);
+		}
+
+		public override string ToString(int level = 0)
+		{
+			string s = getIndentString(level);
+			s += "IF";
+			s += cond.ToString(level + 1);
+			s += lnode.ToString(level + 1);
+			s += rnode == null? "": rnode.ToString(level + 1);
+			return s;
 		}
 	}
 
 	class StmtBLOCK : SynStmt
 	{
+		ArrayList list = new ArrayList();
 		public StmtBLOCK(ArrayList stmts)
 		{
 			type = Type.STMT_BLOCK;
-			children = stmts;
+			list = stmts;
+		}
+
+		public override string ToString(int level = 0)
+		{
+			string s = getIndentString(level);
+			s += "BLOCK";
+
+			foreach (var x in list)
+			{
+				s += ((SynObj)x).ToString(level + 1);
+			}
+
+			return s;
 		}
 	}
 
 	class StmtFOR : SynStmt
 	{
-		class Counter : SynObj { }
+		List<SynObj> counter = new List<SynObj>();
+		SynObj block;
 
 		public StmtFOR()
 		{
 			type = Type.STMT_FOR;
-			AddChild(new Counter());
 		}
 
 		public void SetCounter(SynObj opnd)
 		{
-			GetCounter().children.Insert(0, CheckSynObj(opnd));
+			counter.Insert(0, CheckSynObj(opnd));
 		}
 
-		public void SetCond(SynObj opnd)
+		public void SetCond(SynObj cond)
 		{
-			GetCounter().children.Insert(1, CheckSynObj(opnd));
+			counter.Insert(1, CheckSynObj(cond));
 		}
 
-		public void SetIncriment(SynObj opnd)
+		public void SetIncriment(SynObj incr)
 		{
-			GetCounter().children.Insert(2, opnd);
+			counter.Insert(2, CheckSynObj(incr));
 		}
 
-		public void SetBlock(SynObj opnd)
+		public void SetBlock(SynObj block)
 		{
-			children.Insert(1, CheckSynObj(opnd));
+			this.block = CheckSynObj(block);
 		}
 
-		private Counter GetCounter()
+		public override string ToString(int level = 0)
 		{
-			return (Counter)children[0];
+			string s = getIndentString(level);
+			s += "FOR";
+			foreach (var c in counter)
+			{
+				s += ((SynObj)c).ToString(level + 1);
+			}
+
+			s += block.ToString(level + 1);
+			return s;
 		}
 	}
 
 	class StmtWHILE : SynStmt
 	{
-		public StmtWHILE(SynObj cond)
+		SynExpr cond;
+		SynObj block;
+
+		public StmtWHILE(SynExpr cond)
 		{
 			type = Type.STMT_WHILE;
-			InsertChildren(0, CheckSynObj(cond));
+			this.cond = (SynExpr)CheckSynObj(cond);
 		}
 
-		public void SetBlock(SynObj opnd)
+		public void SetBlock(SynObj block)
 		{
-			InsertChildren(1, CheckSynObj(opnd));
+			this.block = CheckSynObj(block);
+		}
+
+		public override string ToString(int level = 0)
+		{
+			string s = getIndentString(level);
+			s += "WHILE";
+			s += cond.ToString(level + 1);
+			s += block.ToString(level + 1);
+			return s;
 		}
 	}
 
 	class StmtDO : SynStmt
 	{
+		SynExpr cond;
+		SynObj block;
+
 		public StmtDO(SynObj block)
 		{
 			type = Type.STMT_DO;
-			InsertChildren(1, CheckSynObj(block));
+			this.block = CheckSynObj(block);
 		}
 
-		public void SetCond(SynObj cond)
+		public void SetCond(SynExpr cond)
 		{
-			InsertChildren(0, CheckSynObj(cond));
-		}
-	}
-
-	class StmtCASE : SynStmt
-	{
-		public StmtCASE(SynObj expr)
-		{
-			type = Type.STMT_CASE;
-			InsertChildren(0, CheckSynObj(expr));
+			this.cond = (SynExpr)CheckSynObj(cond);
 		}
 
-		public void SetBlock(SynObj block)
+		public override string ToString(int level = 0)
 		{
-			InsertChildren(1, block);
-		}
-	}
-
-	class StmtSWITCH : SynStmt
-	{
-		public StmtSWITCH(SynObj obj)
-		{
-			type = Type.STMT_SWITCH;
-			InsertChildren(0, CheckSynObj(obj));
-		}
-
-		public void AddCase(StmtCASE c)
-		{
-			AddChild(CheckSynObj(c));
+			string s = getIndentString(level);
+			s += "DO WHILE";
+			s += cond.ToString(level + 1);
+			s += block.ToString(level + 1);
+			return s;
 		}
 	}
 
 	class StmtRETURN : SynStmt
 	{
-		public StmtRETURN(SynObj expr)
+		SynExpr val;
+	
+		public StmtRETURN(SynExpr val = null)
 		{
 			type = Type.STMT_RETURN;
-			AddChild(expr);
+			this.val = val;
 		}
+
+		public override string ToString(int level = 0)
+		{
+			string s = getIndentString(level);
+			s += "RETURN";
+			s += val == null? "": val.ToString(level + 1);
+			return s;
+		} 
 	}
 
 	class StmtCONTINUE : SynStmt 
@@ -391,6 +497,11 @@ namespace Compiler
 		{
 			type = Type.STMT_CONTINUE;
 		}
+
+		public override string ToString(int level = 0)
+		{
+			return getIndentString(level) + "CONTINUE";
+		}
 	}
 
 	class StmtBREAK : SynStmt 
@@ -398,6 +509,11 @@ namespace Compiler
 		public StmtBREAK()
 		{
 			type = Type.STMT_BREAK;
+		}
+
+		public override string ToString(int level = 0)
+		{
+			return getIndentString(level) + "BREAK";
 		}
 	}
 

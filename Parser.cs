@@ -16,9 +16,11 @@ namespace Compiler
 
 		Scaner scan;
 
-		private Token CheckToken(Token t, Token.Type type)
+		private Token CheckToken(Token t, Token.Type type, bool get_next_token = false)
 		{
-			return SynExpr.CheckToken(t, type, Token.type_to_terms[type].ToString());
+			SynExpr.CheckToken(t, type, Token.type_to_terms[type].ToString());
+
+			return get_next_token ? scan.Read() : t;
 		}
 
 		public Parser(Scaner sc)
@@ -54,7 +56,7 @@ namespace Compiler
 				{
 					try
 					{
-						tree.children.Add(ParseStmt());
+						tree.AddChild(ParseStmt());
 					}
 					catch (SynExpr.Exception e)
 					{
@@ -70,14 +72,12 @@ namespace Compiler
 			}
 			while (scan.Peek().type != Token.Type.EOF);
 
-			printTree(tree);
-
-			Console.Write('\n');
+			Console.Write(tree.ToString() + '\n' + '\n');
 		}
 
 		#region parse expression
 
-		private SynExpr ParseExpression(bool bind = true)
+		private SynExpr ParseExpression(bool bind = true, bool cond_expr = false)
 		{
 			SynExpr node = null;
 			ArrayList expr_list = new ArrayList();
@@ -91,7 +91,7 @@ namespace Compiler
 					return new ExprList(expr_list);
 				}
 				
-				node = ParseBinaryOper(0, node);
+				node = ParseBinaryOper(0, node, cond_expr);
 				if (node != null)
 				{
 					expr_list.Add(node);
@@ -108,8 +108,10 @@ namespace Compiler
 			return expr_list.Count == 0 ? null : new ExprList(expr_list);
 		}
 
-		private SynExpr ParseBinaryOper(int level, SynExpr lnode)
+		private SynExpr ParseBinaryOper(int level, SynExpr lnode, bool cond_expr = false)
 		{
+			SynExpr root = null;
+
 			while (true)
 			{
 
@@ -119,9 +121,12 @@ namespace Compiler
 				{
 					scan.Read();
 					SynExpr expr = ParseExpression();
-					CheckToken(scan.Peek(), Token.Type.COLON);
-					scan.Read();
-					lnode = new TerOper(lnode, expr, ParseExpression()/*ParseNotAssignmentExpression()*/);
+					CheckToken(scan.Peek(), Token.Type.COLON, true);
+
+					root = new TerOper(lnode);
+					((TerOper)root).SetTrueExpr(expr);
+					((TerOper)root).SetFalseExpr(ParseExpression());
+					lnode = root;
 				}
 
 				int op_level = GetOperatorPriority(scan.Peek());
@@ -129,6 +134,11 @@ namespace Compiler
 				if (op_level < level)
 				{
 					return lnode;
+				}
+
+				if (cond_expr && op_level == 2)
+				{
+					throw new SynObj.Exception("недопустимый оператор в константном выражении");
 				}
 
 				Token oper = scan.Read();
@@ -139,17 +149,22 @@ namespace Compiler
 
 				if (op_level < level_next_oper)
 				{
-					rnode = ParseBinaryOper(op_level + 1, rnode);
+					rnode = ParseBinaryOper(op_level + 1, rnode, cond_expr);
 				}
 
 				if (GetOperatorPriority(oper) == 2)// assign operator
 				{
-					lnode = new AssignOper(oper, lnode, rnode);
+					root = new AssignOper(oper);
+					((AssignOper)root).SetLeftOperand(lnode);
+					((AssignOper)root).SetRightOperand(rnode);
 				}
 				else
 				{
-					lnode = new BinaryOper(oper, lnode, rnode);
+					root = new BinaryOper(oper);
+					((BinaryOper)root).SetLeftOperand(lnode);
+					((BinaryOper)root).SetRightOperand(rnode);
 				}
+				lnode = root;
 			}
 		}
 
@@ -170,7 +185,7 @@ namespace Compiler
 					scan.Read();
 					SynExpr res = ParseExpression();
 
-					CheckToken(scan.Read(), Token.Type.RPAREN);
+					CheckToken(scan.Peek(), Token.Type.RPAREN, true);
 					return res;
 
 				default:
@@ -180,58 +195,70 @@ namespace Compiler
 
 		private SynExpr ParsePostfixExpr()
 		{
-			SynExpr node = ParsePrimaryExpr();
-			
+			SynExpr node = ParsePrimaryExpr(), res = null;
+
+
 			while(true){
 				
 				switch (scan.Peek().type)
 				{
 					case Token.Type.OP_INC:
 					case Token.Type.OP_DEC:
-						node = new PostfixOper(scan.Read(), node);
+						res = new PostfixOper(scan.Read());
+						((PostfixOper)res).SetOperand(node);
 						break;
 
 					case Token.Type.OP_DOT:
 					case Token.Type.OP_REF:
-						node = new RefOper(scan.Read(), node, scan.Peek().type == Token.Type.IDENTIFICATOR? new IdentExpr(scan.Read()): null);
+						res = new RefOper(scan.Read());
+						((RefOper)res).SetParent(node);
+						((RefOper)res).SetChild(scan.Peek().type == Token.Type.IDENTIFICATOR? new IdentExpr(scan.Read()) : null);
 						break;
 
 					case Token.Type.LPAREN:
 						scan.Read();
+						res = new CallOper(node);
 
 						if (scan.Peek().type == Token.Type.RPAREN)
 						{
 							scan.Read();
-							node = new CallOper(node);
 							break;
 						}
 
 						SynExpr args = ParseExpression();
-						CheckToken(scan.Peek(), Token.Type.RPAREN);
-						scan.Read();
-						node = new CallOper(node, args == null? new ArrayList(): args.children);
+
+						CheckToken(scan.Peek(), Token.Type.RPAREN, true);
+						((CallOper)res).AddArgument(args); // нада сделать по нормальному что бы еще и ... можно было
 						break;
 
 					case Token.Type.LBRACKET:
-						
-						node = new RefOper(scan.Read(), node, ParseExpression());
-						CheckToken(scan.Peek(), Token.Type.RBRACKET);
-						scan.Read();
+						res = new RefOper(scan.Read());//, node, ParseExpression());
+						((RefOper)res).SetParent(node);
+						((RefOper)res).SetChild(ParseExpression());
+
+						CheckToken(scan.Peek(), Token.Type.RBRACKET, true);
 						break;
 						
 					default:
-						return node;
+						return res == null? node: res;
 				}
+
+				node = res;
 			}
 		}
 
 		private SynExpr ParseUnaryExpr()
 		{
+			PrefixOper node = null;
+
 			switch (scan.Peek().type)
 			{
+				
 				case Token.Type.OP_INC:
 				case Token.Type.OP_DEC:
-					return new PrefixOper(scan.Read(), ParseUnaryExpr());
+					node = new PrefixOper(scan.Read());
+					node.SetOperand(ParseUnaryExpr());
+					return node;
 
 				case Token.Type.OP_BIT_AND:
 				case Token.Type.OP_STAR:
@@ -239,21 +266,25 @@ namespace Compiler
 				case Token.Type.OP_SUB:
 				case Token.Type.OP_TILDE:
 				case Token.Type.OP_NOT:
-					return new PrefixOper(scan.Read(), ParseUnaryExpr());
-
+					node = new PrefixOper(scan.Read());
+					node.SetOperand(ParseUnaryExpr());
+					return node;
+					
 				case Token.Type.KW_SIZEOF:
 					Token kw = scan.Read();
 
 					if (scan.Peek().type != Token.Type.LPAREN)
 					{
-						return new PrefixOper(kw, ParseUnaryExpr());
+						node = new PrefixOper(kw);
+						node.SetOperand(ParseUnaryExpr());
+						return node;
 					}
 
 					scan.Read();
-					SynExpr res = new PrefixOper(kw, ParseTypeName());
-					CheckToken(scan.Peek(), Token.Type.RPAREN);
-					scan.Read();
-					return res;
+					node = new PrefixOper(kw);
+					node.SetOperand(ParseTypeName());
+					CheckToken(scan.Peek(), Token.Type.RPAREN, true);
+					return node;
 
 				default:
 					return ParsePostfixExpr();
@@ -267,7 +298,7 @@ namespace Compiler
 				case Token.Type.KW_DOUBLE:
 				case Token.Type.KW_INT:
 				case Token.Type.KW_CHAR:
-					return new TypeNameExp(scan.Read());
+					return new IdentExpr(scan.Read());
 
 				case Token.Type.KW_STRUCT:
 					return null;
@@ -326,23 +357,6 @@ namespace Compiler
 			}
 		}
 
-		private void printTree(SynObj node, int level = 0, bool endbranch = false)
-		{
-			const int padd = 5;
-
-			string s = "";
-			if (level > 0)
-				s = new String(' ', (level - 1) * padd) + new String(' ', padd - 1);
-
-			Console.Write(s + "\"" + node.ToString() + "\"");
-
-			for (int i = 0; i < node.children.Count; i++)
-			{
-				Console.Write('\n');
-				printTree((SynObj)node.children[i], level + 1, i == node.children.Count - 1);
-			}
-		}
-
 		#endregion
 
 		#region parse statment
@@ -350,7 +364,7 @@ namespace Compiler
 		private SynObj ParseStmExpression()
 		{
 			SynObj res = ParseExpression(false);
-			CheckToken(scan.Read(), Token.Type.SEMICOLON);
+			CheckToken(scan.Peek(), Token.Type.SEMICOLON, true);
 			return res;
 		}
 
@@ -362,23 +376,29 @@ namespace Compiler
 			{
 				case Token.Type.KW_WHILE:
 					scan.Read();
-					CheckToken(scan.Read(), Token.Type.LPAREN);
+					CheckToken(scan.Peek(), Token.Type.LPAREN, true);
+
 					node = new StmtWHILE(ParseExpression());
-					CheckToken(scan.Read(), Token.Type.RPAREN);
+					
+					CheckToken(scan.Peek(), Token.Type.RPAREN, true);
 					((StmtWHILE)node).SetBlock(ParseStmt());
 					break;
 
 				case Token.Type.KW_DO:
 					scan.Read();
+					
 					node = new StmtDO(ParseStmt());
-					CheckToken(scan.Read(), Token.Type.LPAREN);
+					CheckToken(scan.Peek(), Token.Type.KW_WHILE, true);
+					CheckToken(scan.Peek(), Token.Type.LPAREN, true);
+					
 					((StmtDO)node).SetCond(ParseExpression());
-					CheckToken(scan.Read(), Token.Type.RPAREN);
+					CheckToken(scan.Peek(), Token.Type.RPAREN, true);
+					CheckToken(scan.Peek(), Token.Type.SEMICOLON, true);
 					break;
 
 				case Token.Type.KW_FOR:
 					scan.Read();
-					CheckToken(scan.Read(), Token.Type.LPAREN);
+					CheckToken(scan.Peek(), Token.Type.LPAREN, true);
 					node = new StmtFOR();
 					((StmtFOR)node).SetCounter(ParseStmExpression());
 					((StmtFOR)node).SetCond(ParseStmExpression());
@@ -388,60 +408,20 @@ namespace Compiler
 						((StmtFOR)node).SetIncriment(ParseExpression());
 					}
 
-					CheckToken(scan.Read(), Token.Type.RPAREN);
+					CheckToken(scan.Peek(), Token.Type.RPAREN, true);
 					((StmtFOR)node).SetBlock(ParseStmt());
 					break;
 
 				case Token.Type.KW_IF:
 					scan.Read();
-					CheckToken(scan.Read(), Token.Type.LPAREN);
+					CheckToken(scan.Peek(), Token.Type.LPAREN, true);
 					node = new StmtIF(ParseExpression());
-					CheckToken(scan.Read(), Token.Type.RPAREN);
+					CheckToken(scan.Peek(), Token.Type.RPAREN, true);
 					((StmtIF)node).SetBranchTrue(ParseStmt());
 					if (scan.Peek().type == Token.Type.KW_ELSE)
 					{
 						scan.Read();
 						((StmtIF)node).SetBranchFalse(ParseStmt());
-					}
-					break;
-
-				case Token.Type.KW_SWITCH:
-					scan.Read();
-					CheckToken(scan.Read(), Token.Type.LPAREN);
-					node = new StmtSWITCH(ParseExpression());
-
-					CheckToken(scan.Read(), Token.Type.RPAREN);
-
-					bool one_loop = scan.Peek().type != Token.Type.LBRACE;
-
-					if (!one_loop)
-					{
-						scan.Read();
-					}
-
-					while (scan.Peek().type != Token.Type.RBRACE)
-					{
-						if (scan.Peek().type != Token.Type.KW_CASE && scan.Peek().type != Token.Type.KW_DEFAULT)
-						{
-							SynObj.CheckToken(scan.Read(), Token.Type.KW_DEFAULT, "требуется оператор \"case\" или \"default\"");
-						}
-
-						scan.Read();
-
-						StmtCASE c = new StmtCASE(ParseExpression()); // здесь должно быть константное выражение
-						CheckToken(scan.Read(), Token.Type.COLON);
-						c.SetBlock(ParseStmt());
-						((StmtSWITCH)node).AddCase(c);
-
-						if(one_loop)
-						{
-							break;
-						}
-					}
-
-					if(!one_loop)
-					{
-						CheckToken(scan.Read(), Token.Type.RBRACE);
 					}
 					break;
 
@@ -452,25 +432,34 @@ namespace Compiler
 					{
 						stmts.Add(ParseStmt());
 					}
-					CheckToken(scan.Read(), Token.Type.RBRACE);
+					CheckToken(scan.Peek(), Token.Type.RBRACE, true);
 					node = new StmtBLOCK(stmts);
 					break;
 
 				case Token.Type.KW_RETURN:
 					scan.Read();
-					node = new StmtRETURN(ParseStmExpression());
+					if (scan.Peek().type != Token.Type.SEMICOLON)
+					{
+						node = new StmtRETURN(ParseExpression());
+					}
+					else
+					{
+						node = new StmtRETURN();
+					}
+
+					CheckToken(scan.Peek(), Token.Type.SEMICOLON, true);
 					break;
 
 				case Token.Type.KW_BREAK:
 					scan.Read();
 					node = new StmtBREAK();
-					CheckToken(scan.Read(), Token.Type.SEMICOLON);
+					CheckToken(scan.Peek(), Token.Type.SEMICOLON, true);
 					break;
 
 				case Token.Type.KW_CONTINUE:
 					scan.Read();
 					node = new StmtCONTINUE();
-					CheckToken(scan.Read(), Token.Type.SEMICOLON);
+					CheckToken(scan.Peek(), Token.Type.SEMICOLON, true);
 					break;
 
 				default:

@@ -81,11 +81,9 @@ namespace Compiler
 			terms["..."] = Type.OP_ELLIPSIS;
 			terms[":"] = Type.COLON;
 			terms["break"] = Type.KW_BREAK;
-			terms["case"] = Type.KW_CASE;
 			terms["char"] = Type.KW_CHAR;
 			terms["const"] = Type.KW_CONST;
 			terms["continue"] = Type.KW_CONTINUE;
-			terms["default"] = Type.KW_DEFAULT;
 			terms["do"] = Type.KW_DO;
 			terms["double"] = Type.KW_DOUBLE;
 			terms["else"] = Type.KW_ELSE;
@@ -93,17 +91,13 @@ namespace Compiler
 			terms["extern"] = Type.KW_EXTERN;
 			terms["for"] = Type.KW_FOR;
 			terms["if"] = Type.KW_IF;
-			terms["inline"] = Type.KW_INLINE;
 			terms["int"] = Type.KW_INT;
 			terms["register"] = Type.KW_REGISTER;
-			terms["restrict"] = Type.KW_RESTRICT;
 			terms["return"] = Type.KW_RETURN;
 			terms["sizeof"] = Type.KW_SIZEOF;
 			terms["static"] = Type.KW_STATIC;
 			terms["struct"] = Type.KW_STRUCT;
-			terms["switch"] = Type.KW_SWITCH;
 			terms["typedef"] = Type.KW_TYPEDEF;
-			terms["union"] = Type.KW_UNION;
 			terms["void"] = Type.KW_VOID;
 			terms["while"] = Type.KW_WHILE;
 
