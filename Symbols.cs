@@ -18,14 +18,14 @@ namespace Compiler
 
 		public override string ToString()
 		{
-			string s = "TABLE\n";
+			string s = "TABLE:\n";
 
 			foreach (var x in table)
 			{
-				s += x.Value.ToString();
+				s += x.Value.ToString() + '\n';
 			}
 
-			return s + '\n';
+			return s;
 		}
 	}
 
@@ -48,7 +48,7 @@ namespace Compiler
 
 		public Symbol()
 		{
-			this.name = "";
+			this.name = "UNDEF";
 		}
 
 		public void SetName(string s)
@@ -103,10 +103,6 @@ namespace Compiler
 	}
 
 	class SymVarParam : SymVar
-	{
-	}
-
-	class SymVarConst : SymVar
 	{
 	}
 
@@ -165,7 +161,7 @@ namespace Compiler
 	class SymTypeArray : SymType
 	{
 		SymType type;
-		SynExpr size;
+		SynExpr size = null;
 		public SymTypeArray(SymType t)
 		{
 			this.type = t;
@@ -178,7 +174,7 @@ namespace Compiler
 
 		public override string ToString()
 		{
-			return "ARRAY OF " + type.ToString(); 
+			return "ARRAY (" + (size == null? "NONE" :size.ToString()) + ") OF " + type.ToString(); 
 		}
 	}
 
@@ -196,14 +192,36 @@ namespace Compiler
 		{
 			this.args.Add(p);
 		}
+
+		public override string ToString()
+		{
+			return "FUNC";
+		}
 	}
 
 	class SymTypeEnum : SymType
 	{
-		System.Collections.Hashtable enumerators = new System.Collections.Hashtable();
+		Dictionary<string, SynExpr> enumerators = new Dictionary<string, SynExpr>();
 
-		public void AddEnumerator()
+		public void AddEnumerator(string name, SynExpr val)
 		{
+			this.enumerators.Add(name, val);
+		}
+
+		public void AddEnumerator(string name)
+		{
+			this.enumerators.Add(name, null);
+		}
+
+		public override string ToString()
+		{
+			string s = "ENUM " + this.name + " {\n";
+			foreach (var e in this.enumerators)
+			{
+				s += e.Key + (e.Value == null ? "" : "=" + e.Value.ToString()) + '\n';
+			}
+			s += "}";
+			return s;
 		}
 	}
 
@@ -214,6 +232,11 @@ namespace Compiler
 		public void SetItems(SymTable table)
 		{
 			fields = table;
+		}
+
+		public override string ToString()
+		{
+			return  "STRUCT " + this.name + "{" + fields.ToString() + "}";
 		}
 	}
 

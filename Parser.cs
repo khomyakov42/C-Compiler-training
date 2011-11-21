@@ -95,11 +95,12 @@ namespace Compiler // LILU
 			}
 			while (scan.Peek().type != Token.Type.EOF);
 			Console.Write(table.ToString());
+			Console.Write(logger.ToString());
 		}
 
 		#region parse expression
 
-		private SynExpr ParseExpression(bool bind = true)
+		private SynExpr ParseExpression(bool bind = true, bool parse_list = false)
 		{
 			SynExpr node = null;
 			ArrayList expr_list = new ArrayList();
@@ -119,7 +120,7 @@ namespace Compiler // LILU
 					expr_list.Add(node);
 				}
 
-				if (scan.Peek().type != Token.Type.COMMA)
+				if (scan.Peek().type != Token.Type.COMMA || !parse_list)
 				{
 					break;
 				}
@@ -127,7 +128,12 @@ namespace Compiler // LILU
 				scan.Read();
 			}
 
-			return expr_list.Count == 0 ? null : new ExprList(expr_list);
+			if (parse_list)
+			{
+				return expr_list.Count == 0 ? null : new ExprList(expr_list);
+			}
+
+			return expr_list.Count == 0 ? null : (SynExpr)expr_list[0];
 		}
 
 		private SynExpr ParseBinaryOper(int level, SynExpr lnode)
@@ -421,10 +427,10 @@ namespace Compiler // LILU
 			}
 		}
 
-		private SynExpr ParseConstExpr()
+		private SynExpr ParseConstExpr(bool is_list = true)
 		{
 			this.parse_const_expr = true;
-			SynExpr res = ParseExpression();
+			SynExpr res = ParseExpression(true, is_list);
 			this.parse_const_expr = false;
 
 			return res;
@@ -554,17 +560,26 @@ namespace Compiler // LILU
 		
 		#region parse declaration
 
-		private void ParseDeclaration()
+		private void ParseDeclaration(bool is_struct = false, SymTable _table = null)
 		{
 			SymType type = ParseTypeSpecifier(false);
 
+			if (!is_struct)
+			{
+				_table = this.table;
+			}
+
 			if (scan.Peek().type != Token.Type.SEMICOLON)
 			{
-				SymVar var = ParseDeclarator(type);
-				table.Add(var);
+				SymVar var = null;
+				var = ParseDeclarator(type);
+			
+				_table.Add(var);
 				while (scan.Peek().type == Token.Type.COMMA)
 				{
+					scan.Read();
 					var = ParseDeclarator(type);
+					_table.Add(var);
 				}
 			}
 
@@ -620,29 +635,72 @@ namespace Compiler // LILU
 
 					if (scan.Peek().type == Token.Type.LBRACE)
 					{
-						//parse struct declaration
+						scan.Read();
+						SymTable items = new SymTable();
+						while (scan.Peek().type != Token.Type.RBRACE && scan.Peek().type != Token.Type.EOF)
+						{
+							ParseDeclaration(true, items);
+						}
+						CheckToken(scan.Peek(), Token.Type.RBRACE, true);
+						((SymTypeStruct)type).SetItems(items);
 					}
-					CheckToken(scan.Peek(), Token.Type.RBRACE, true);
 					break;
 
-				case Token.Type.KW_ENUM: // enum specifier
+				case Token.Type.KW_ENUM:
+					scan.Read();
+					type = new SymTypeEnum();
+
+					if (scan.Peek().type != Token.Type.IDENTIFICATOR && scan.Peek().type != Token.Type.LBRACE)
+					{
+						CheckToken(scan.Peek(), Token.Type.IDENTIFICATOR);
+					}
+
+					if (scan.Peek().type == Token.Type.IDENTIFICATOR)
+					{
+						type.SetName(scan.Read().strval);
+					}
+
+					if (scan.Peek().type == Token.Type.LBRACE)
+					{
+						scan.Read();
+						if (scan.Peek().type != Token.Type.RBRACE)
+						{
+							bool first_loop = true;
+							while (scan.Peek().type == Token.Type.COMMA || first_loop)
+							{
+								if (!first_loop)
+								{
+									scan.Read();
+								}
+								else
+								{
+									first_loop = false;
+								}
+
+								CheckToken(scan.Peek(), Token.Type.IDENTIFICATOR);
+								string name = scan.Read().strval;
+
+								if (scan.Peek().type == Token.Type.OP_ASSIGN)
+								{
+									scan.Read();
+									((SymTypeEnum)type).AddEnumerator(name, ParseConstExpr(false));
+								}
+								else
+								{
+									((SymTypeEnum)type).AddEnumerator(name);
+								}
+							}
+							
+						}
+						CheckToken(scan.Peek(), Token.Type.RBRACE, true);
+					}
+
 					break;
 				default: // typedef type
 					break;
 			}
 
 			return type;
-		}
-
-		private void ParseStructDeclaration()
-		{
-			SymType type = ParseTypeSpecifier(false);
-			SymVar var = ParseStructDeclarator(type);
-		}
-
-		private SymVar ParseStructDeclarator(SymType t)
-		{
-			return ParseDeclarator(t);
 		}
 
 		private SymVar ParseDeclarator(SymType type, bool is_abstract = false)
@@ -697,10 +755,10 @@ namespace Compiler // LILU
 
 					case Token.Type.LBRACKET:
 						scan.Read();
+						t = new SymTypeArray(t);
 						if (scan.Peek().type != Token.Type.RBRACKET)
 						{
-							t = new SymTypeArray(t);
-							((SymTypeArray)t).SetSize(ParseConstExpr());
+							((SymTypeArray)t).SetSize(ParseConstExpr(false));
 						}
 
 						CheckToken(scan.Peek(), Token.Type.RBRACKET, true);

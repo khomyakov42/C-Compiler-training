@@ -105,6 +105,7 @@ namespace Compiler
 			{
 				type_to_terms[de.Value] = de.Key;
 			}
+			type_to_terms[Type.IDENTIFICATOR] = "идентификатор";
 		}
 
 		public Token(int pos, int line, Type type, string val)
