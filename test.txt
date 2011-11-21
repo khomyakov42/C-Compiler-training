@@ -1,4 +1,4 @@
-sizeof(int);
-sizeof x;
-sizeof(x);
-sizeof int;
+struct{
+	int x;
+	int y;
+} z;

@@ -121,6 +121,11 @@ namespace Compiler
 		{
 			return this.type + " " + this.line + " " + this.pos + " " + this.strval;
 		}
+
+		public string GetStrVal()
+		{
+			return strval;
+		}
 	}
 
    class Scaner

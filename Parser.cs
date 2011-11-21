@@ -4,21 +4,50 @@ using System.Collections;
 using System.Linq;
 using System.Text;
 
-namespace Compiler
+namespace Compiler // LILU
 {
 	class Parser
 	{
-		class Exception : System.Exception
+		public class Exception : System.Exception
 		{
 			public Exception(string message, int line, int pos) :
 				base("Ошибка синтаксиса в строке " + line + " позиции " + pos + ": " + message + "\n") {}
 		}
 
+		class Logger
+		{
+			List<Exception> list;
+
+			public Logger()
+			{
+				this.list = new List<Exception>();
+			}
+
+			public void Add(Exception e)
+			{
+				list.Add(e);
+			}
+
+			override public string ToString()
+			{
+				string s = "";
+				foreach (var e in this.list)
+				{
+					s += e.ToString() + '\n';
+				}
+
+				return s;
+			}
+		}
+
 		Scaner scan;
+		Logger logger;
+		SymTable table = new SymTable();
+		bool parse_const_expr = false;
 
 		private Token CheckToken(Token t, Token.Type type, bool get_next_token = false)
 		{
-			SynExpr.CheckToken(t, type, Token.type_to_terms[type].ToString());
+			SynObj.CheckToken(t, type, Token.type_to_terms[type].ToString());
 
 			return get_next_token ? scan.Read() : t;
 		}
@@ -26,6 +55,7 @@ namespace Compiler
 		public Parser(Scaner sc)
 		{
 			scan = sc;
+			logger = new Logger();
 		}
 
 		private void PassExpr()
@@ -54,30 +84,22 @@ namespace Compiler
 			{
 				try
 				{
-					try
-					{
-						tree.AddChild(ParseStmt());
-					}
-					catch (SynExpr.Exception e)
-					{
-						Console.WriteLine("Ошибка в строке " + scan.GetLine() + " позиции " + scan.GetPos() + ": " + e.Message);
-						PassExpr();
-					}
+					ParseDeclaration();
+				//	tree.AddChild(ParseStmt());
 				}
-				catch (Scaner.Exception e)
+				catch (SynObj.Exception e)
 				{
-					Console.WriteLine(e.Message);
+					this.logger.Add(new Parser.Exception(e.Message, scan.GetLine(), scan.GetPos()));
 					PassExpr();
 				}
 			}
 			while (scan.Peek().type != Token.Type.EOF);
-
-			Console.Write(tree.ToString() + '\n' + '\n');
+			Console.Write(table.ToString());
 		}
 
 		#region parse expression
 
-		private SynExpr ParseExpression(bool bind = true, bool cond_expr = false)
+		private SynExpr ParseExpression(bool bind = true)
 		{
 			SynExpr node = null;
 			ArrayList expr_list = new ArrayList();
@@ -91,7 +113,7 @@ namespace Compiler
 					return new ExprList(expr_list);
 				}
 				
-				node = ParseBinaryOper(0, node, cond_expr);
+				node = ParseBinaryOper(0, node);
 				if (node != null)
 				{
 					expr_list.Add(node);
@@ -108,7 +130,7 @@ namespace Compiler
 			return expr_list.Count == 0 ? null : new ExprList(expr_list);
 		}
 
-		private SynExpr ParseBinaryOper(int level, SynExpr lnode, bool cond_expr = false)
+		private SynExpr ParseBinaryOper(int level, SynExpr lnode)
 		{
 			SynExpr root = null;
 
@@ -136,7 +158,7 @@ namespace Compiler
 					return lnode;
 				}
 
-				if (cond_expr && op_level == 2)
+				if (this.parse_const_expr && op_level == 2)
 				{
 					throw new SynObj.Exception("недопустимый оператор в константном выражении");
 				}
@@ -149,7 +171,7 @@ namespace Compiler
 
 				if (op_level < level_next_oper)
 				{
-					rnode = ParseBinaryOper(op_level + 1, rnode, cond_expr);
+					rnode = ParseBinaryOper(op_level + 1, rnode);
 				}
 
 				if (GetOperatorPriority(oper) == 2)// assign operator
@@ -179,6 +201,11 @@ namespace Compiler
 					return new ConstExpr(scan.Read());
 
 				case Token.Type.IDENTIFICATOR:
+					if (this.parse_const_expr)
+					{
+						return new ConstExpr(scan.Read());
+					}
+
 					return new IdentExpr(scan.Read());
 
 				case Token.Type.LPAREN:
@@ -250,6 +277,7 @@ namespace Compiler
 		private SynExpr ParseUnaryExpr(bool prev_is_unary_oper = true)
 		{
 			PrefixOper node = null;
+
 			switch (scan.Peek().type)
 			{
 				case Token.Type.OP_INC:
@@ -393,6 +421,15 @@ namespace Compiler
 			}
 		}
 
+		private SynExpr ParseConstExpr()
+		{
+			this.parse_const_expr = true;
+			SynExpr res = ParseExpression();
+			this.parse_const_expr = false;
+
+			return res;
+		}
+
 		#endregion
 
 		#region parse statment
@@ -466,7 +503,15 @@ namespace Compiler
 					ArrayList stmts = new ArrayList();
 					while (scan.Peek().type != Token.Type.RBRACE && scan.Peek().type != Token.Type.EOF)
 					{
-						stmts.Add(ParseStmt());
+						try
+						{
+							stmts.Add(ParseStmt());
+						}
+						catch (SynObj.Exception e)
+						{
+							this.logger.Add(new Parser.Exception(e.Message, scan.GetLine(), scan.GetPos()));
+							PassExpr();
+						}
 					}
 					CheckToken(scan.Peek(), Token.Type.RBRACE, true);
 					node = new StmtBLOCK(stmts);
@@ -504,6 +549,223 @@ namespace Compiler
 			}
 
 			return node;
+		}
+		#endregion
+		
+		#region parse declaration
+
+		private void ParseDeclaration()
+		{
+			SymType type = ParseTypeSpecifier(false);
+
+			if (scan.Peek().type != Token.Type.SEMICOLON)
+			{
+				SymVar var = ParseDeclarator(type);
+				table.Add(var);
+				while (scan.Peek().type == Token.Type.COMMA)
+				{
+					var = ParseDeclarator(type);
+				}
+			}
+
+			CheckToken(scan.Peek(), Token.Type.SEMICOLON, true);
+		}
+
+		private SymType ParseTypeSpecifier(bool parse_storage_class = true)
+		{
+			SymType type = null;
+
+			if (parse_storage_class)
+			{
+				switch (scan.Peek().type)
+				{
+					case Token.Type.KW_TYPEDEF:
+					case Token.Type.KW_EXTERN:
+					case Token.Type.KW_STATIC:
+						scan.Read();
+						break;
+				}
+			}
+
+			switch (scan.Peek().type)
+			{
+				case Token.Type.KW_VOID:
+					scan.Read();
+					type = new SymTypeVoid();
+					break;
+
+				case Token.Type.KW_INT:
+					scan.Read();
+					type = new SymTypeInt();
+					break;
+
+				case Token.Type.KW_DOUBLE:
+					scan.Read();
+					type = new SymTypeDouble();
+					break;
+
+				case Token.Type.KW_CHAR:
+					scan.Read();
+					type = new SymTypeChar();
+					break;
+
+				case Token.Type.KW_STRUCT: // struct specifier
+					scan.Read();
+					type = new SymTypeStruct();
+
+					if (scan.Peek().type == Token.Type.IDENTIFICATOR)
+					{
+						((SymTypeStruct)type).SetName(scan.Read().strval);
+					}
+
+					if (scan.Peek().type == Token.Type.LBRACE)
+					{
+						//parse struct declaration
+					}
+					CheckToken(scan.Peek(), Token.Type.RBRACE, true);
+					break;
+
+				case Token.Type.KW_ENUM: // enum specifier
+					break;
+				default: // typedef type
+					break;
+			}
+
+			return type;
+		}
+
+		private void ParseStructDeclaration()
+		{
+			SymType type = ParseTypeSpecifier(false);
+			SymVar var = ParseStructDeclarator(type);
+		}
+
+		private SymVar ParseStructDeclarator(SymType t)
+		{
+			return ParseDeclarator(t);
+		}
+
+		private SymVar ParseDeclarator(SymType type, bool is_abstract = false)
+		{
+			SymType t = ParsePointer(type);
+
+			SymVar var = null;
+
+			switch (scan.Peek().type)
+			{
+				case Token.Type.IDENTIFICATOR:
+					if (is_abstract)
+					{
+						return null;
+					}
+
+					var = new SymVar(scan.Read().strval);
+					break;
+
+				case Token.Type.LPAREN:
+					scan.Read();
+					var = ParseDeclarator(type, is_abstract);
+					t = var.GetType();
+					CheckToken(scan.Peek(), Token.Type.RPAREN, true);
+					break;
+
+				default:
+					return null;
+			}
+
+			while (true)
+			{
+				switch (scan.Peek().type)
+				{
+					case Token.Type.LPAREN:
+						scan.Read();
+
+						t = new SymTypeFunc(t);
+
+						if (scan.Peek().type != Token.Type.RPAREN)
+						{
+							((SymTypeFunc)t).SetParam(ParseParameterDeclaration());
+
+							while (scan.Peek().type == Token.Type.COMMA)
+							{
+								((SymTypeFunc)t).SetParam(ParseParameterDeclaration());
+							}
+						}
+
+						CheckToken(scan.Peek(), Token.Type.RPAREN, true);
+						break;
+
+					case Token.Type.LBRACKET:
+						scan.Read();
+						if (scan.Peek().type != Token.Type.RBRACKET)
+						{
+							t = new SymTypeArray(t);
+							((SymTypeArray)t).SetSize(ParseConstExpr());
+						}
+
+						CheckToken(scan.Peek(), Token.Type.RBRACKET, true);
+						break;
+
+					default:
+						var.SetType(t);
+						return var;
+				}
+			}
+
+		}
+
+		private SymVar ParseParameterDeclaration()
+		{
+			SymType type = ParseTypeSpecifier();
+			 return ParseDeclarator(type, true);
+		}
+
+		private SymType ParsePointer(SymType type)
+		{
+			SymType t = type;
+			while (scan.Peek().type == Token.Type.OP_STAR)
+			{
+				t = new SymTypePointer(t);
+				scan.Read();
+			}
+			
+			return t;
+		}
+
+		private SynInit ParseInit()
+		{
+			if (scan.Peek().type == Token.Type.LBRACE)
+			{
+				return ParseInitList();
+			}
+
+			SynExpr val = ParseExpression();
+			return val == null ? null : new SynInit(val);
+		}
+
+		private SynInit ParseInitList()
+		{
+			if (scan.Peek().type != Token.Type.LBRACE)
+			{
+				return null;
+			}
+
+			scan.Read();
+			SynInitList res = new SynInitList();
+
+			res.AddInit(ParseInit());
+			while (scan.Peek().type == Token.Type.COMMA)
+			{
+				if (scan.Peek().type == Token.Type.RBRACE)
+				{
+					scan.Read();
+					break;
+				}
+
+				res.AddInit(ParseInit());
+			}
+
+			return new SynInit(res);
 		}
 		#endregion
 	}

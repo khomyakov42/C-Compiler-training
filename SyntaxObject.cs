@@ -28,7 +28,7 @@ namespace Compiler
 		{
 			if (t.type != t_type)
 			{
-				throw new SynObj.Exception("отсутствует " + s);
+				throw new SynObj.Exception(s);
 			}
 
 			return t;
@@ -140,23 +140,25 @@ namespace Compiler
 		}
 	}
 
-	class ConstExpr : VarExpr
-	{
-		public ConstExpr(Token t)
-			: base(t)
-		{
-			type = Type.CONST;
-		}
-	}
-
-	class VarExpr : SynExpr
+	class ConstExpr : SynExpr
 	{
 		protected Token token;
 
-		public VarExpr(Token t)
+		public ConstExpr(Token t)
 		{
-			type = Type.IDENTIFIER;
-			token = t;
+			type = Type.CONST;
+			switch (t.type)
+			{
+				case Token.Type.CONST_INT:
+				case Token.Type.CONST_CHAR:
+				case Token.Type.CONST_DOUBLE:
+				case Token.Type.CONST_STRING:
+					token = t;
+					break;
+
+				default:
+					throw new SynObj.Exception("требуется константное выражение");
+			}
 		}
 
 		public override string ToString(int level = 0)
@@ -172,7 +174,7 @@ namespace Compiler
 		public IdentExpr(Token t)
 		{
 			type = Type.IDENTIFIER;
-			token = t;
+			token = CheckToken(t, Token.Type.IDENTIFICATOR, "требуется идентификатор");
 		}
 
 		public override string ToString(int level = 0)
@@ -339,6 +341,43 @@ namespace Compiler
 	class SizeofOper : PrefixOper
 	{
 		public SizeofOper(Token op) : base(op) { type = Type.OP_SIZEOF; }
+	}
+
+	class SynInit : SynExpr
+	{
+		SynExpr val;
+		public SynInit(SynExpr v)
+		{
+			this.val = v;
+		}
+
+		public override string ToString(int level = 0)
+		{
+			return val.ToString();
+		}
+	}
+
+	class SynInitList : SynExpr
+	{
+		List<SynInit> list = new List<SynInit>();
+
+		public void AddInit(SynInit init)
+		{
+			list.Add((SynInit)CheckSynObj(init));
+		}
+
+		public override string ToString(int level = 0)
+		{
+			string s = getIndentString(level);
+			s += "INIT_LIST";
+
+			foreach (var x in list)
+			{
+				s += ((SynObj)x).ToString(level + 1);
+			}
+
+			return s;
+		}
 	}
 
 
@@ -545,4 +584,5 @@ namespace Compiler
 	}
 
 #endregion
+
 }
