@@ -4,7 +4,7 @@ using System.Collections;
 using System.Linq;
 using System.Text;
 
-namespace Compiler // LILU
+namespace Compiler
 {
 	class Parser
 	{
@@ -572,13 +572,24 @@ namespace Compiler // LILU
 			if (scan.Peek().type != Token.Type.SEMICOLON)
 			{
 				SymVar var = null;
-				var = ParseDeclarator(type);
-			
-				_table.Add(var);
-				while (scan.Peek().type == Token.Type.COMMA)
+				bool first_loop = true;
+				while (scan.Peek().type == Token.Type.COMMA || first_loop)
 				{
-					scan.Read();
+					if (first_loop)
+					{
+						first_loop = false;
+					}
+					else
+					{
+						scan.Read();
+					}
+
 					var = ParseDeclarator(type);
+					if (scan.Peek().type == Token.Type.OP_ASSIGN)
+					{
+						scan.Read();
+						var.SetInitValue(ParseInit());
+					}
 					_table.Add(var);
 				}
 			}
@@ -814,14 +825,10 @@ namespace Compiler // LILU
 			res.AddInit(ParseInit());
 			while (scan.Peek().type == Token.Type.COMMA)
 			{
-				if (scan.Peek().type == Token.Type.RBRACE)
-				{
-					scan.Read();
-					break;
-				}
-
+				scan.Read();
 				res.AddInit(ParseInit());
 			}
+			CheckToken(scan.Peek(), Token.Type.RBRACE, true);
 
 			return new SynInit(res);
 		}

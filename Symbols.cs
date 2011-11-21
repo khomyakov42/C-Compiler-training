@@ -71,8 +71,8 @@ namespace Compiler
 
 	class SymVar : Symbol
 	{
-		SymType type;
-		SynExpr value;
+		SymType type = null;
+		SynExpr value = null;
 
 		public SymVar(string s): base(s) { }
 		public SymVar(): base() { }
@@ -82,7 +82,7 @@ namespace Compiler
 			this.type = type;
 		}
 
-		public void SetInitValue(SynExpr val)
+		public void SetInitValue(SynInit val)
 		{
 			value = val;
 		}
@@ -94,7 +94,7 @@ namespace Compiler
 
 		public override string ToString()
 		{
-			return this.name + "   " + this.type.ToString() + "   ";
+			return this.name + "   " + this.type.ToString() + "   " + (this.value == null? "": this.value.ToString());
 		}
 	}
 
