@@ -6,6 +6,39 @@ using System.Text;
 
 namespace Compiler
 {
+	class Pair<T1, T2>
+	{
+		public T1 first;
+		public T2 last;
+
+		public Pair(T1 _first, T2  _last)
+		{
+			first = _first;
+			last = _last;
+		}
+
+		public Pair(){
+			first = default(T1);
+			last = default(T2);
+		}
+	}
+
+	class Three<T1, T2, T3>: Pair<T1, T3>{
+		public T2 middle;
+		public Three(T1 _first, T2 _middle, T3 _last)
+		{
+			first = _first;
+			middle = _middle;
+			last = _last;
+		}
+
+		public Three(){
+			first = default(T1);
+			middle = default(T2);
+			last = default(T3);
+		}
+	}
+
 	class Parser
 	{
 		public class Exception : System.Exception
@@ -606,7 +639,7 @@ namespace Compiler
 				switch (scan.Peek().type)
 				{
 					case Token.Type.KW_TYPEDEF:
-					case Token.Type.KW_EXTERN:
+				//	case Token.Type.KW_EXTERN:
 					case Token.Type.KW_STATIC:
 						scan.Read();
 						break;
@@ -716,7 +749,30 @@ namespace Compiler
 
 		private SymVar ParseDeclarator(SymType type, bool is_abstract = false)
 		{
-			SymType t = ParsePointer(type);
+			Three<SymType, SymVar, SymType> res = ParseInternalDeclarator(type, is_abstract);
+			res.middle.SetType(res.first);
+			return res.middle;
+		}
+
+		private Three<SymType, SymVar, SymType> ParseInternalDeclarator(SymType type = null, bool is_abstract = false)
+		{
+			Pair<SymType, SymType> right_part = new Pair<SymType,SymType>(), left_part = new Pair<SymType,SymType>();
+
+			//parse pointer
+			if (type != null)
+			{
+				left_part.first = type;
+			}
+
+			while (scan.Peek().type == Token.Type.OP_STAR)
+			{
+				left_part.first = new SymTypePointer(left_part.first);
+				if (left_part.last == null)
+				{
+					left_part.last = left_part.first;
+				}
+				scan.Read();
+			}
 
 			SymVar var = null;
 
@@ -733,8 +789,10 @@ namespace Compiler
 
 				case Token.Type.LPAREN:
 					scan.Read();
-					var = ParseDeclarator(type, is_abstract);
-					t = var.GetType();
+					Three<SymType, SymVar, SymType> res = ParseInternalDeclarator(null, is_abstract);
+					right_part.first = res.first;
+					right_part.last = res.last;
+					var = res.middle;
 					CheckToken(scan.Peek(), Token.Type.RPAREN, true);
 					break;
 
@@ -749,15 +807,26 @@ namespace Compiler
 					case Token.Type.LPAREN:
 						scan.Read();
 
-						t = new SymTypeFunc(t);
+						SymTypeFunc func = new SymTypeFunc();
+
+						if (right_part.last != null)
+						{
+							((SymRefType)right_part.last).SetType(func);
+						}
+						right_part.last = func;
+
+						if (right_part.first == null)
+						{
+							right_part.first = right_part.last;
+						}
 
 						if (scan.Peek().type != Token.Type.RPAREN)
 						{
-							((SymTypeFunc)t).SetParam(ParseParameterDeclaration());
+							((SymTypeFunc)right_part.last).SetParam(ParseParameterDeclaration());
 
 							while (scan.Peek().type == Token.Type.COMMA)
 							{
-								((SymTypeFunc)t).SetParam(ParseParameterDeclaration());
+								((SymTypeFunc)right_part.last).SetParam(ParseParameterDeclaration());
 							}
 						}
 
@@ -766,21 +835,32 @@ namespace Compiler
 
 					case Token.Type.LBRACKET:
 						scan.Read();
-						t = new SymTypeArray(t);
+
+						SymTypeArray arr = new SymTypeArray();
+						if (right_part.last != null)
+						{
+							((SymRefType)right_part.last).SetType(arr);
+						}
+						right_part.last = arr;
+
+						if (right_part.first == null)
+						{
+							right_part.first = right_part.last;
+						}
+
 						if (scan.Peek().type != Token.Type.RBRACKET)
 						{
-							((SymTypeArray)t).SetSize(ParseConstExpr(false));
+							((SymTypeArray)right_part.last).SetSize(ParseConstExpr(false));
 						}
 
 						CheckToken(scan.Peek(), Token.Type.RBRACKET, true);
 						break;
 
 					default:
-						var.SetType(t);
-						return var;
+						((SymRefType)right_part.last).SetType(left_part.first);
+						return new Three<SymType,SymVar,SymType>(right_part.first, var, left_part.last);
 				}
 			}
-
 		}
 
 		private SymVar ParseParameterDeclaration()

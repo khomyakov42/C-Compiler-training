@@ -158,11 +158,41 @@ namespace Compiler
 		}
 	}
 
-	class SymTypeArray : SymType
+	abstract class SymRefType : SymType
 	{
-		SymType type;
+		protected SymType type;
+
+		public SymRefType(SymType t = null)
+		{
+			type = null;
+		}
+
+		public void SetType(SymType t)
+		{
+			this.type = t;
+		}
+
+		public SymType GetTailType()
+		{
+			SymType t = this.type;
+			while (t != null && t is SymRefType && ((SymRefType)t).GetRefType() != null)
+			{
+				t = ((SymRefType)type).GetRefType();
+			}
+
+			return t;
+		}
+
+		public SymType GetRefType()
+		{
+			return this.type;
+		}
+	}
+
+	class SymTypeArray : SymRefType
+	{
 		SynExpr size = null;
-		public SymTypeArray(SymType t)
+		public SymTypeArray(SymType t = null)
 		{
 			this.type = t;
 		}
@@ -178,12 +208,11 @@ namespace Compiler
 		}
 	}
 
-	class SymTypeFunc : SymType
+	class SymTypeFunc : SymRefType
 	{
-		SymType type;
 		List<SymVar> args = new List<SymVar>();
 
-		public SymTypeFunc(SymType t)
+		public SymTypeFunc(SymType t = null)
 		{
 			this.type = t;
 		}
@@ -195,7 +224,7 @@ namespace Compiler
 
 		public override string ToString()
 		{
-			return "FUNC";
+			return "FUNC RETURNED " + this.type.ToString();
 		}
 	}
 
@@ -249,12 +278,11 @@ namespace Compiler
 		}
 	}
 
-	class SymTypePointer : SymType
+	class SymTypePointer : SymRefType
 	{
-		SymType type;
-		public SymTypePointer(SymType t)
+		public SymTypePointer(SymType t = null)
 		{
-			type = t;
+			this.type = t;
 		}
 
 		public override string ToString()
