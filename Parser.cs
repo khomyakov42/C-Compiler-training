@@ -774,6 +774,11 @@ namespace Compiler
 				scan.Read();
 			}
 
+			if (left_part.last == null)
+			{
+				left_part.last = left_part.first;
+			}
+
 			SymVar var = null;
 
 			switch (scan.Peek().type)
@@ -857,7 +862,15 @@ namespace Compiler
 						break;
 
 					default:
-						((SymRefType)right_part.last).SetType(left_part.first);
+						if (right_part.last != null)
+						{
+							((SymRefType)right_part.last).SetType(left_part.first);
+						}
+						else
+						{
+							right_part.first = left_part.first;
+						}
+
 						return new Three<SymType,SymVar,SymType>(right_part.first, var, left_part.last);
 				}
 			}
