@@ -1,0 +1,8 @@
+
+struct A{
+	struct B{
+		struct{} unnname;
+	} b;
+	B b2;
+} a;
+

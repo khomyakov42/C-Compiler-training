@@ -48,7 +48,7 @@ namespace Compiler
 
 		protected string getIndentString(int level)
 		{
-			return '\n' + new String(' ', level * INDENT);
+			return new String(' ', level * INDENT);
 		}
 	}
 
@@ -123,10 +123,10 @@ namespace Compiler
 
 		public override string ToString(int level = 0)
 		{
-			string s = getIndentString(level);
+			string s = '\n' + getIndentString(level);
 			s += SEP + oper.strval + SEP;
-			s += lnode.ToString(level + 1);
-			s += rnode.ToString(level + 1);
+			s += '\n' + lnode.ToString(level + 1);
+			s += '\n' + rnode.ToString(level + 1);
 			return s;
 		}
 	}
@@ -245,7 +245,7 @@ namespace Compiler
 		{
 			string s = getIndentString(level);
 			s += "CALL";
-			s += operand.ToString(level + 1);
+			s += '\n' + operand.ToString(level + 1);
 
 			foreach (var arg in args)
 			{
@@ -369,17 +369,16 @@ namespace Compiler
 		public override string ToString(int level = 0)
 		{
 			string s = getIndentString(level);
-			s += "INIT_LIST";
+			s += "INIT_LIST { ";
 
 			foreach (var x in list)
 			{
-				s += ((SynObj)x).ToString(level + 1);
+				s += '\n' + ((SynObj)x).ToString(level + 1);
 			}
 
-			return s;
+			return s + " }";
 		}
 	}
-
 
 #endregion 
 

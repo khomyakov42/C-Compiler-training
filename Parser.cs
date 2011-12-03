@@ -49,14 +49,14 @@ namespace Compiler
 
 		class Logger
 		{
-			List<Exception> list;
+			List<System.Exception> list;
 
 			public Logger()
 			{
-				this.list = new List<Exception>();
+				this.list = new List<System.Exception>();
 			}
 
-			public void Add(Exception e)
+			public void Add(System.Exception e)
 			{
 				list.Add(e);
 			}
@@ -66,7 +66,7 @@ namespace Compiler
 				string s = "";
 				foreach (var e in this.list)
 				{
-					s += e.ToString() + '\n';
+					s += e.Message + '\n';
 				}
 
 				return s;
@@ -75,12 +75,12 @@ namespace Compiler
 
 		Scaner scan;
 		Logger logger;
-		SymTable table = new SymTable();
+		StackTable tables = new StackTable();
 		bool parse_const_expr = false;
 
 		private Token CheckToken(Token t, Token.Type type, bool get_next_token = false)
 		{
-			SynObj.CheckToken(t, type, Token.type_to_terms[type].ToString());
+			SynObj.CheckToken(t, type, "требуется \"" + Token.type_to_terms[type].ToString() + '"');
 
 			return get_next_token ? scan.Read() : t;
 		}
@@ -94,6 +94,7 @@ namespace Compiler
 		private void PassExpr()
 		{
 			Token t = new Token();
+			scan.Pass();
 			do
 			{
 				try
@@ -102,10 +103,11 @@ namespace Compiler
 				}
 				catch (Scaner.Exception e)
 				{
-					Console.WriteLine(e.Message);
+					scan.Pass();
+					logger.Add(e);
 				}
 			}
-			while (t.type != Token.Type.EOF && t.type != Token.Type.SEMICOLON);
+			while (t.type != Token.Type.EOF && t.type != Token.Type.SEMICOLON && t.type != Token.Type.RBRACE);
 			
 		}
 
@@ -117,17 +119,34 @@ namespace Compiler
 			{
 				try
 				{
-					ParseDeclaration();
-				//	tree.AddChild(ParseStmt());
+					while (scan.Peek().type != Token.Type.EOF)
+					{
+						ParseDeclaration();
+					}
 				}
 				catch (SynObj.Exception e)
 				{
 					this.logger.Add(new Parser.Exception(e.Message, scan.GetLine(), scan.GetPos()));
 					PassExpr();
 				}
+				catch (Symbol.Exception e)
+				{
+					this.logger.Add(new Parser.Exception(e.Message, e.line, e.pos));
+					if (!e.Data.Contains("delayed"))
+					{
+						PassExpr();
+					}
+				}
+				catch (Scaner.Exception e)
+				{
+					this.logger.Add(e);
+					PassExpr();
+				}
+
 			}
 			while (scan.Peek().type != Token.Type.EOF);
-			Console.Write(table.ToString());
+
+			Console.Write(tables.ToString());
 			Console.Write(logger.ToString());
 		}
 
@@ -245,6 +264,12 @@ namespace Compiler
 						return new ConstExpr(scan.Read());
 					}
 
+					if (!tables.ContainsIdentifier(scan.Peek().strval))
+					{
+						tables.AddDummyVar(scan.Peek().strval);
+						this.logger.Add(new Parser.Exception(scan.Peek().strval + ": необъявленный идентификатор", scan.GetPos(), scan.GetLine()));
+					}
+
 					return new IdentExpr(scan.Read());
 
 				case Token.Type.LPAREN:
@@ -291,7 +316,7 @@ namespace Compiler
 							break;
 						}
 
-						SynExpr args = ParseExpression();
+						SynExpr args = ParseExpression(true, true);
 
 						CheckToken(scan.Peek(), Token.Type.RPAREN, true);
 						((CallOper)res).AddArgument(args);
@@ -463,7 +488,16 @@ namespace Compiler
 		private SynExpr ParseConstExpr(bool is_list = true)
 		{
 			this.parse_const_expr = true;
-			SynExpr res = ParseExpression(true, is_list);
+			SynExpr res = null;
+			try
+			{
+				res = ParseExpression(true, is_list);
+			}
+			catch (SynObj.Exception e)
+			{
+				this.logger.Add(new Parser.Exception(e.Message, scan.GetLine(), scan.GetPos()));
+			}
+
 			this.parse_const_expr = false;
 
 			return res;
@@ -538,22 +572,7 @@ namespace Compiler
 					break;
 
 				case Token.Type.LBRACE:
-					scan.Read();
-					ArrayList stmts = new ArrayList();
-					while (scan.Peek().type != Token.Type.RBRACE && scan.Peek().type != Token.Type.EOF)
-					{
-						try
-						{
-							stmts.Add(ParseStmt());
-						}
-						catch (SynObj.Exception e)
-						{
-							this.logger.Add(new Parser.Exception(e.Message, scan.GetLine(), scan.GetPos()));
-							PassExpr();
-						}
-					}
-					CheckToken(scan.Peek(), Token.Type.RBRACE, true);
-					node = new StmtBLOCK(stmts);
+					node = ParseCompound();
 					break;
 
 				case Token.Type.KW_RETURN:
@@ -589,23 +608,91 @@ namespace Compiler
 
 			return node;
 		}
+
+		private StmtBLOCK ParseCompound(SymTypeFunc func = null)
+		{
+			if (scan.Peek().type != Token.Type.LBRACE)
+			{
+				return null;
+			}
+
+			scan.Read();
+			ArrayList stmts = new ArrayList();
+			bool begin_block = true;
+			tables.NewTable();
+
+			if (func != null)
+			{
+				foreach(var arg in func.args)
+				{
+					if (arg.GetName() != Symbol.UNNAMED)
+					{
+						tables.AddVar(arg);
+					}
+				}
+			}
+
+			while (scan.Peek().type != Token.Type.RBRACE && scan.Peek().type != Token.Type.EOF)
+			{
+				if (IsType(scan.Peek()) && begin_block)
+				{
+					ParseDeclaration();
+					continue;
+				}
+
+				begin_block = false;
+
+				try
+				{
+					stmts.Add(ParseStmt());
+				}
+				catch (SynObj.Exception e)
+				{
+					this.logger.Add(new Parser.Exception(e.Message, scan.GetLine(), scan.GetPos()));
+					PassExpr();
+				}
+				catch (Symbol.Exception e)
+				{
+					this.logger.Add(new Parser.Exception(e.Message, e.line, e.pos));
+					PassExpr();
+				}
+				catch (Scaner.Exception e)
+				{
+					this.logger.Add(e);
+					PassExpr();
+				}
+			}
+			CheckToken(scan.Peek(), Token.Type.RBRACE, true);
+			tables.Up();
+			return new StmtBLOCK(stmts);
+		}
+
 		#endregion
 		
 		#region parse declaration
 
 		private void ParseDeclaration(bool is_struct = false, SymTable _table = null)
 		{
-			SymType type = ParseTypeSpecifier(false);
-
-			if (!is_struct)
+			SymType type = null;
+			SymVar var = null;
+			if (scan.Peek().type == Token.Type.KW_TYPEDEF)
 			{
-				_table = this.table;
+				scan.Read();
+				type = ParseType(false, false);
+				var = ParseDeclarator(type);
+				type = new SymTypeAlias(var);
+				tables.AddType(type);
+				CheckToken(scan.Peek(), Token.Type.SEMICOLON, true);
+				return;
 			}
+
+			type = ParseType(false);
+
+			bool is_function = false;
+			bool first_loop = true;
 
 			if (scan.Peek().type != Token.Type.SEMICOLON)
 			{
-				SymVar var = null;
-				bool first_loop = true;
 				while (scan.Peek().type == Token.Type.COMMA || first_loop)
 				{
 					if (first_loop)
@@ -618,130 +705,197 @@ namespace Compiler
 					}
 
 					var = ParseDeclarator(type);
-					if (scan.Peek().type == Token.Type.OP_ASSIGN)
+
+					if (var.GetType() is SymTypeFunc && !((SymTypeFunc)var.GetType()).IsEmptyBody()) // значит это функция
+					{
+						is_function = true;
+					}
+
+					if (scan.Peek().type == Token.Type.OP_ASSIGN && !is_function && !is_struct)
 					{
 						scan.Read();
 						var.SetInitValue(ParseInit());
 					}
-					_table.Add(var);
+
+
+					if (is_struct)
+					{
+						_table.AddVar(var);
+					}
+					else
+					{
+						tables.AddVar(var);
+					}
+
+
+					if (is_function)
+					{
+						if (scan.Peek().type == Token.Type.SEMICOLON)
+						{
+							scan.Read();
+						}
+							
+						return;
+					}
 				}
 			}
 
 			CheckToken(scan.Peek(), Token.Type.SEMICOLON, true);
 		}
 
-		private SymType ParseTypeSpecifier(bool parse_storage_class = true)
+		private bool IsType(Token t)
+		{
+			switch (t.type)
+			{
+				case Token.Type.KW_STRUCT:
+				case Token.Type.KW_ENUM:
+					return true;
+				default:
+					return tables.ContainsType(t.strval);
+			}
+			
+		}
+
+		private SymType ParseStruct()
+		{
+			CheckToken(scan.Peek(), Token.Type.KW_STRUCT, true);
+
+			SymTypeStruct type = new SymTypeStruct();
+
+			if (scan.Peek().type != Token.Type.IDENTIFICATOR && scan.Peek().type != Token.Type.LBRACE)
+			{
+				CheckToken(scan.Peek(), Token.Type.IDENTIFICATOR);
+			}
+
+			if (scan.Peek().type == Token.Type.IDENTIFICATOR)
+			{
+				type.SetName(scan.Read().strval);
+			}
+
+			if (scan.Peek().type == Token.Type.LBRACE)
+			{
+				scan.Read();
+				SymTable items = new SymTable();
+				while (scan.Peek().type != Token.Type.RBRACE && scan.Peek().type != Token.Type.EOF)
+				{
+					ParseDeclaration(true, items);
+				}
+
+				CheckToken(scan.Peek(), Token.Type.RBRACE, true);
+				type.SetItems(items);
+			}
+
+			return type;
+		}
+
+		private SymType ParseEnum()
+		{
+			CheckToken(scan.Peek(), Token.Type.KW_ENUM, true);
+
+			SymTypeEnum type = new SymTypeEnum();
+
+			if (scan.Peek().type != Token.Type.IDENTIFICATOR && scan.Peek().type != Token.Type.LBRACE)
+			{
+				CheckToken(scan.Peek(), Token.Type.IDENTIFICATOR);
+			}
+
+			if (scan.Peek().type == Token.Type.IDENTIFICATOR)
+			{
+				type.SetName(scan.Read().strval);
+			}
+
+			if (scan.Peek().type == Token.Type.LBRACE)
+			{
+				scan.Read();
+				if (scan.Peek().type != Token.Type.RBRACE)
+				{
+					scan.Read();
+					string name = "";
+					SynExpr val = null;
+					do
+					{
+						CheckToken(scan.Peek(), Token.Type.IDENTIFICATOR);
+						name = scan.Read().strval;
+
+						if (scan.Peek().type == Token.Type.OP_ASSIGN)
+						{
+							scan.Read();
+							val = ParseConstExpr(false);
+						}
+						
+						type.AddEnumerator(name, val);
+
+					} while (scan.Peek().type == Token.Type.COMMA && scan.Peek().type != Token.Type.EOF);
+				}
+				CheckToken(scan.Peek(), Token.Type.RBRACE, true);
+			}
+
+			return type;
+		}
+
+		private SymType ParseType(bool parse_storage_class = true, bool add_to_table = true)
 		{
 			SymType type = null;
-
-			if (parse_storage_class)
-			{
-				switch (scan.Peek().type)
-				{
-					case Token.Type.KW_TYPEDEF:
-				//	case Token.Type.KW_EXTERN:
-					case Token.Type.KW_STATIC:
-						scan.Read();
-						break;
-				}
-			}
+			bool possibly_override = false;
 
 			switch (scan.Peek().type)
 			{
 				case Token.Type.KW_VOID:
-					scan.Read();
-					type = new SymTypeVoid();
+					type = new SymTypeVoid(scan.Read());
 					break;
 
 				case Token.Type.KW_INT:
-					scan.Read();
-					type = new SymTypeInt();
+					type = new SymTypeInt(scan.Read());
 					break;
 
 				case Token.Type.KW_DOUBLE:
-					scan.Read();
-					type = new SymTypeDouble();
+					type = new SymTypeDouble(scan.Read());
 					break;
 
 				case Token.Type.KW_CHAR:
-					scan.Read();
-					type = new SymTypeChar();
+					type = new SymTypeChar(scan.Read());
 					break;
 
-				case Token.Type.KW_STRUCT: // struct specifier
-					scan.Read();
-					type = new SymTypeStruct();
-
-					if (scan.Peek().type == Token.Type.IDENTIFICATOR)
+				case Token.Type.KW_STRUCT:
+					type = ParseStruct();
+					if (type.GetName() != Symbol.UNNAMED)
 					{
-						((SymTypeStruct)type).SetName(scan.Read().strval);
-					}
-
-					if (scan.Peek().type == Token.Type.LBRACE)
-					{
-						scan.Read();
-						SymTable items = new SymTable();
-						while (scan.Peek().type != Token.Type.RBRACE && scan.Peek().type != Token.Type.EOF)
-						{
-							ParseDeclaration(true, items);
-						}
-						CheckToken(scan.Peek(), Token.Type.RBRACE, true);
-						((SymTypeStruct)type).SetItems(items);
+						possibly_override = true;
 					}
 					break;
 
 				case Token.Type.KW_ENUM:
+					type = ParseEnum();
+					if (type.GetName() != Symbol.UNNAMED)
+					{
+						possibly_override = true;
+					}
+					break;
+
+				case Token.Type.IDENTIFICATOR:
+					try
+					{
+						type = tables.GetType(scan.Peek().strval);
+					}
+					catch (SymTable.Exception e)
+					{
+						throw new Symbol.Exception(e.Message, scan.GetPos(), scan.GetLine());
+					}
 					scan.Read();
-					type = new SymTypeEnum();
-
-					if (scan.Peek().type != Token.Type.IDENTIFICATOR && scan.Peek().type != Token.Type.LBRACE)
-					{
-						CheckToken(scan.Peek(), Token.Type.IDENTIFICATOR);
-					}
-
-					if (scan.Peek().type == Token.Type.IDENTIFICATOR)
-					{
-						type.SetName(scan.Read().strval);
-					}
-
-					if (scan.Peek().type == Token.Type.LBRACE)
-					{
-						scan.Read();
-						if (scan.Peek().type != Token.Type.RBRACE)
-						{
-							bool first_loop = true;
-							while (scan.Peek().type == Token.Type.COMMA || first_loop)
-							{
-								if (!first_loop)
-								{
-									scan.Read();
-								}
-								else
-								{
-									first_loop = false;
-								}
-
-								CheckToken(scan.Peek(), Token.Type.IDENTIFICATOR);
-								string name = scan.Read().strval;
-
-								if (scan.Peek().type == Token.Type.OP_ASSIGN)
-								{
-									scan.Read();
-									((SymTypeEnum)type).AddEnumerator(name, ParseConstExpr(false));
-								}
-								else
-								{
-									((SymTypeEnum)type).AddEnumerator(name);
-								}
-							}
-							
-						}
-						CheckToken(scan.Peek(), Token.Type.RBRACE, true);
-					}
 
 					break;
-				default: // typedef type
-					break;
+			}
+
+			if (add_to_table && possibly_override)
+			{
+				try
+				{
+					tables.AddType(type);
+				}
+				catch (SymTable.Exception e)
+				{
+					throw new Symbol.Exception(e.Message, scan.GetPos(), scan.GetLine());
+				}
 			}
 
 			return type;
@@ -750,34 +904,47 @@ namespace Compiler
 		private SymVar ParseDeclarator(SymType type, bool is_abstract = false)
 		{
 			Three<SymType, SymVar, SymType> res = ParseInternalDeclarator(type, is_abstract);
+
+			if (res == null)
+			{
+				throw new Symbol.Exception("требуется идентификатор", scan.GetPos(), scan.GetLine());
+			}
+
 			res.middle.SetType(res.first);
 			return res.middle;
+		}
+
+		private Pair<SymType, SymType> ParsePointer(Pair<SymType, SymType> l_type_part)
+		{
+			while (scan.Peek().type == Token.Type.OP_STAR)
+			{
+				l_type_part.first = new SymTypePointer(l_type_part.first);
+				if (l_type_part.last == null)
+				{
+					l_type_part.last = l_type_part.first;
+				}
+				scan.Read();
+			}
+
+			if (l_type_part.last == null)
+			{
+				l_type_part.last = l_type_part.first;
+			}
+
+			return l_type_part;
 		}
 
 		private Three<SymType, SymVar, SymType> ParseInternalDeclarator(SymType type = null, bool is_abstract = false)
 		{
 			Pair<SymType, SymType> right_part = new Pair<SymType,SymType>(), left_part = new Pair<SymType,SymType>();
-
-			//parse pointer
+			bool possibly_function = false;
+			
 			if (type != null)
 			{
 				left_part.first = type;
 			}
 
-			while (scan.Peek().type == Token.Type.OP_STAR)
-			{
-				left_part.first = new SymTypePointer(left_part.first);
-				if (left_part.last == null)
-				{
-					left_part.last = left_part.first;
-				}
-				scan.Read();
-			}
-
-			if (left_part.last == null)
-			{
-				left_part.last = left_part.first;
-			}
+			left_part = ParsePointer(left_part);
 
 			SymVar var = null;
 
@@ -786,15 +953,23 @@ namespace Compiler
 				case Token.Type.IDENTIFICATOR:
 					if (is_abstract)
 					{
-						return null;
+						var = new SymVarParam(scan.Read());
 					}
-
-					var = new SymVar(scan.Read().strval);
+					else
+					{
+						var = new SymVar(scan.Read());
+						possibly_function = true;
+					}
 					break;
 
 				case Token.Type.LPAREN:
 					scan.Read();
 					Three<SymType, SymVar, SymType> res = ParseInternalDeclarator(null, is_abstract);
+					if (res == null)
+					{
+						throw new Symbol.Exception("требуется идентификатор", scan.GetPos(), scan.GetLine());
+					}
+
 					right_part.first = res.first;
 					right_part.last = res.last;
 					var = res.middle;
@@ -802,7 +977,19 @@ namespace Compiler
 					break;
 
 				default:
-					return null;
+					if (!is_abstract)
+					{
+						return null;
+					}
+					var = new SymVarParam(scan.GetLine(), scan.GetPos());
+					break;
+			}
+
+			if (left_part.first == left_part.last && left_part.last is SymTypeVoid 
+				&& scan.Peek().type != Token.Type.LPAREN && !is_abstract)
+			{
+				throw new Symbol.Exception("недопустимо использование типа \"void\"",
+					((SymTypeVoid)left_part.first).pos, ((SymTypeVoid)left_part.first).line);
 			}
 
 			while (true)
@@ -831,11 +1018,19 @@ namespace Compiler
 
 							while (scan.Peek().type == Token.Type.COMMA)
 							{
+								scan.Read();
 								((SymTypeFunc)right_part.last).SetParam(ParseParameterDeclaration());
 							}
 						}
 
 						CheckToken(scan.Peek(), Token.Type.RPAREN, true);
+						if (possibly_function)
+						{
+							if (scan.Peek().type == Token.Type.LBRACE)
+							{
+								((SymTypeFunc)right_part.last).SetBody(ParseCompound(func));
+							}
+						}
 						break;
 
 					case Token.Type.LBRACKET:
@@ -873,25 +1068,15 @@ namespace Compiler
 
 						return new Three<SymType,SymVar,SymType>(right_part.first, var, left_part.last);
 				}
+
+				possibly_function = false;
 			}
 		}
 
-		private SymVar ParseParameterDeclaration()
+		private SymVarParam ParseParameterDeclaration()
 		{
-			SymType type = ParseTypeSpecifier();
-			 return ParseDeclarator(type, true);
-		}
-
-		private SymType ParsePointer(SymType type)
-		{
-			SymType t = type;
-			while (scan.Peek().type == Token.Type.OP_STAR)
-			{
-				t = new SymTypePointer(t);
-				scan.Read();
-			}
-			
-			return t;
+			SymType type = ParseType();
+			return ((SymVarParam)ParseDeclarator(type, true));
 		}
 
 		private SynInit ParseInit()
@@ -901,7 +1086,9 @@ namespace Compiler
 				return ParseInitList();
 			}
 
-			SynExpr val = ParseExpression();
+			SynExpr val = null;
+			val = ParseExpression();
+
 			return val == null ? null : new SynInit(val);
 		}
 

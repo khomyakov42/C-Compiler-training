@@ -1,0 +1,4 @@
+int f1();
+int f2(void);
+int f2(void*);
+int f2(int, void*);

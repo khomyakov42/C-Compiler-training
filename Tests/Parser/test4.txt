@@ -1,0 +1,8 @@
+int (*f1)(void);
+int (*f2)(void*);
+int (*f3)(void*, int);
+int (*f4)(int, void*);
+int (*f5)(void* x);
+int (*f6)(void* x, int y);
+int (*f7)(int x, void* y);
+

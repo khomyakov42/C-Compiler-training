@@ -1,0 +1,4 @@
+int x1 = 5;
+char x2 = '1';
+double x3 = .0;
+int x = 1, y = 2, z = 3;

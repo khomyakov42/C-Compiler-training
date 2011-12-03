@@ -1,0 +1,4 @@
+int x1;
+char x2;
+double x3;
+int x, y, z;

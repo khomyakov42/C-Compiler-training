@@ -1,7 +1,5 @@
-struct{
-	int x;
-	char *y;
-	struct ZAZA{
-		int a,*b,c;
-	} z;
-} (***A)()[sizeof(int) * .01 / 0x213 + 04545];
+int f(void);
+
+int f(){
+}
+

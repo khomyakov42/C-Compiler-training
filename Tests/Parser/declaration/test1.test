@@ -1,0 +1,17 @@
+int x = 5;
+
+int f(){
+	return x + 4;
+}
+
+void up(){
+	x += 4;
+}
+
+void main(){
+	struct {} *(*Z)[];
+	int x = 0;
+	x = f();
+	up();
+	return x;
+}

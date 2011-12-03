@@ -1,0 +1,8 @@
+enum TT {A, B, C};
+typedef TT TENUM;
+
+int main(){
+	struct TENUM
+	{} X;
+	TT Y;
+}

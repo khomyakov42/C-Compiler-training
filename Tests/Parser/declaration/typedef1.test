@@ -1,0 +1,10 @@
+typedef int *(*INT)[100];
+typedef struct{int x;} MYSTRACT;
+typedef int (*F_INT)();
+
+
+
+F_INT x;
+MYSTRACT ms;
+INT asd;
+

@@ -1,0 +1,5 @@
+char A;
+int main(){
+	int A;
+	A = 5;
+}

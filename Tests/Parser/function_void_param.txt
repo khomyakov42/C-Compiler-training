@@ -1,0 +1,6 @@
+void (*x)(void);
+void (*x)(void*);
+void (*x)(void, void);
+void (*x)(void, int);
+void (*x)(int, void);
+void (*x)(int, void*);

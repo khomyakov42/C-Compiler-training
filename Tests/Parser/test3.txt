@@ -1,0 +1,20 @@
+int f1(void x){
+}
+
+int f4(int x, void z){
+}
+
+int f4(int x, void){
+}
+
+int f2(int){
+}
+
+int f3(void, void){
+}
+
+int f3(void, void x){
+}
+
+int f4(void, int x){
+}

@@ -175,9 +175,18 @@ namespace Compiler
 		Token.Type type;
 
 		Token next_token = null;
+		Scaner.Exception error = null;
 
       public Scaner(System.IO.Stream istream) { 
 			buf = new Buffer(istream);
+			try
+			{
+				next_token = Next();
+			}
+			catch (Scaner.Exception e)
+			{
+				error = e;
+			}
 		}
 
 		private int ReadInValue()
@@ -191,7 +200,7 @@ namespace Compiler
 		{
 			int pos = buf.getPos(), line = buf.GetLine();
 
-			while (!IsWhite(buf.Peek()) && buf.Peek() != -1 && buf.Peek() != ';') { buf.Read(); };
+			//while (!IsWhite(buf.Peek()) && buf.Peek() != -1 && buf.Peek() != ';') { buf.Read(); };
 
 			throw new Exception(s, line, pos);
 		}
@@ -251,6 +260,11 @@ namespace Compiler
 		private bool IsOperator(int ch)
 		{
 			return "+-=/%*&|^~?!.:<>[]".IndexOf((char)ch) > -1;
+		}
+
+		private bool IsPermissed(int ch)
+		{
+			return IsAlpha(ch) || IsDecimal(ch) || IsWhite(ch) || IsSeparator(ch) || IsOperator(ch);
 		}
 
 #endregion
@@ -428,6 +442,11 @@ namespace Compiler
 
 			while (IsAlpha(buf.Peek()) || IsDecimal(buf.Peek())) { ReadInValue(); }
 
+			if (!IsPermissed(buf.Peek()))
+			{
+				throw_exception("недопустимый символ \"" + (char)buf.Peek() + "\"");
+			}
+
 			type = Token.Type.IDENTIFICATOR;
 		}
 
@@ -574,7 +593,8 @@ namespace Compiler
 
 			while (IsWhite(buf.Peek())) { buf.Read(); }
 
-			int line = buf.GetLine(), pos = buf.getPos();
+			line = buf.GetLine();
+			pos = buf.getPos();
 
 			int ch = buf.Peek();
 
@@ -626,29 +646,49 @@ namespace Compiler
 			return new Token(pos, line, type, val);;
 		}
 
-		public Token Read()
+		private void CheckError(bool is_read = false)
 		{
-			if (next_token == null)
+			if (error != null)
 			{
-				line = buf.GetLine();
-				pos = buf.getPos();
+				Scaner.Exception res = error;
+				error = null;
+				throw res;
+			}
+		}
+
+		public Token Read() 
+		{
+			CheckError();
+			Token res = next_token;
+
+			try
+			{
 				next_token = Next();
 			}
+			catch (Scaner.Exception e)
+			{
+				error = e;
+			}
 
-			Token res = next_token;
-			next_token = null;
 			return res;
+		}
+
+		public void Pass()
+		{
+			while (!IsWhite(buf.Peek()) && buf.Peek() != -1 && buf.Peek() != ';') { buf.Read(); };
+			try
+			{
+				next_token = Next();
+			}
+			catch (Scaner.Exception e)
+			{
+				error = e;
+			}
 		}
 
 		public Token Peek()
 		{
-			if (next_token == null)
-			{
-				line = buf.GetLine();
-				pos = buf.getPos();
-				next_token = Next();
-			}
-
+			CheckError();
 			return next_token;
 		}
 

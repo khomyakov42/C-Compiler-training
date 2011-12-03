@@ -1,0 +1,2 @@
+int count;
+int a[5+3 * count];

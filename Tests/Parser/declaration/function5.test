@@ -1,0 +1,7 @@
+int f(){
+	int x = 6;
+	int y = 36;
+	x = x + y;
+	x *= 1;
+	return x;
+}
