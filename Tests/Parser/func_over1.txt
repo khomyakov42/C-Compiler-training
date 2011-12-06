@@ -1,0 +1,16 @@
+int f1(int, int);
+int f2(int, int);
+
+int f1(int x, int y){
+	return x < y? f2(x + 1): x;
+}
+
+int f2(int x, int y){
+	return x < y? f1(x + 1): x;
+}
+
+int main(){
+	f1(0, 10);
+}
+
+

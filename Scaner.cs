@@ -7,6 +7,11 @@ using System.IO;
 
 namespace Compiler
 {
+	class Exception : System.Exception
+	{
+
+		public Exception(string s = "") : base(s) { }
+	}
 
 	class Token
 	{
@@ -131,7 +136,7 @@ namespace Compiler
 
    class Scaner
    {
-		public class Exception : System.Exception
+		public class Exception : Compiler.Exception
 		{
 			public Exception(string message, int line, int pos) : 
 				base("Лексическая ошибка в строке " + line + " позиции " + pos + ": " + message) { }

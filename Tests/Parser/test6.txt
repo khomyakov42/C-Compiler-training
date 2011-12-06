@@ -1,0 +1,16 @@
+int f1(void);
+int f2(int, int);
+
+int f1(void x){
+	return f2(1,2);
+}
+
+int f2(int x, int y){
+	return x < y? f1(): x;
+}
+
+int main(){
+	f2(0, 10);
+}
+
+

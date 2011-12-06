@@ -41,7 +41,7 @@ namespace Compiler
 
 	class Parser
 	{
-		public class Exception : System.Exception
+		public class Exception : Compiler.Exception
 		{
 			public Exception(string message, int line, int pos) :
 				base("Ошибка синтаксиса в строке " + line + " позиции " + pos + ": " + message + "\n") {}
@@ -94,12 +94,20 @@ namespace Compiler
 		private void PassExpr()
 		{
 			Token t = new Token();
-			scan.Pass();
+			int count_br = 0;
 			do
 			{
 				try
 				{
 					t = scan.Read();
+					if (t.type == Token.Type.LBRACE)
+					{
+						count_br++;
+					}
+					else if (t.type == Token.Type.RBRACE)
+					{
+						count_br--;
+					}
 				}
 				catch (Scaner.Exception e)
 				{
@@ -107,8 +115,31 @@ namespace Compiler
 					logger.Add(e);
 				}
 			}
-			while (t.type != Token.Type.EOF && t.type != Token.Type.SEMICOLON && t.type != Token.Type.RBRACE);
+			while (t.type != Token.Type.EOF && t.type != Token.Type.SEMICOLON && t.type != Token.Type.RBRACE || count_br != 0);
 			
+		}
+
+		private void ToHandlerException(Compiler.Exception e)
+		{
+			if (e is SynObj.Exception)
+			{
+				this.logger.Add(new Parser.Exception(e.Message, scan.GetLine(), scan.GetPos()));
+				PassExpr();
+			}
+			else if (e is Symbol.Exception)
+			{
+				this.logger.Add(new Parser.Exception(e.Message, ((Symbol.Exception)e).line, ((Symbol.Exception)e).pos));
+				if (!e.Data.Contains("delayed"))
+				{
+					PassExpr();
+				}
+			}
+			else if (e is Scaner.Exception)
+			{
+				scan.Pass();
+				this.logger.Add(e);
+				PassExpr();
+			}
 		}
 
 		public void Parse()
@@ -121,26 +152,12 @@ namespace Compiler
 				{
 					while (scan.Peek().type != Token.Type.EOF)
 					{
-						ParseDeclaration();
+						ParseDeclaration(false);
 					}
 				}
-				catch (SynObj.Exception e)
+				catch (Compiler.Exception e)
 				{
-					this.logger.Add(new Parser.Exception(e.Message, scan.GetLine(), scan.GetPos()));
-					PassExpr();
-				}
-				catch (Symbol.Exception e)
-				{
-					this.logger.Add(new Parser.Exception(e.Message, e.line, e.pos));
-					if (!e.Data.Contains("delayed"))
-					{
-						PassExpr();
-					}
-				}
-				catch (Scaner.Exception e)
-				{
-					this.logger.Add(e);
-					PassExpr();
+					ToHandlerException(e);
 				}
 
 			}
@@ -267,7 +284,7 @@ namespace Compiler
 					if (!tables.ContainsIdentifier(scan.Peek().strval))
 					{
 						tables.AddDummyVar(scan.Peek().strval);
-						this.logger.Add(new Parser.Exception(scan.Peek().strval + ": необъявленный идентификатор", scan.GetPos(), scan.GetLine()));
+						this.logger.Add(new Parser.Exception(scan.Peek().strval + ": необъявленный идентификатор", scan.GetLine(), scan.GetPos()));
 					}
 
 					return new IdentExpr(scan.Read());
@@ -634,16 +651,16 @@ namespace Compiler
 
 			while (scan.Peek().type != Token.Type.RBRACE && scan.Peek().type != Token.Type.EOF)
 			{
-				if (IsType(scan.Peek()) && begin_block)
-				{
-					ParseDeclaration();
-					continue;
-				}
-
-				begin_block = false;
-
 				try
 				{
+					if (IsType(scan.Peek()) && begin_block)
+					{
+						ParseDeclaration();
+						continue;
+					}
+
+					begin_block = false;
+				
 					stmts.Add(ParseStmt());
 				}
 				catch (SynObj.Exception e)
@@ -654,10 +671,14 @@ namespace Compiler
 				catch (Symbol.Exception e)
 				{
 					this.logger.Add(new Parser.Exception(e.Message, e.line, e.pos));
-					PassExpr();
+					if (!e.Data.Contains("delayed"))
+					{
+						PassExpr();
+					}
 				}
 				catch (Scaner.Exception e)
 				{
+					scan.Pass();
 					this.logger.Add(e);
 					PassExpr();
 				}
@@ -671,7 +692,7 @@ namespace Compiler
 		
 		#region parse declaration
 
-		private void ParseDeclaration(bool is_struct = false, SymTable _table = null)
+		private void ParseDeclaration(bool in_block = true, SymTable _table = null)
 		{
 			SymType type = null;
 			SymVar var = null;
@@ -689,6 +710,7 @@ namespace Compiler
 			type = ParseType(false);
 
 			bool is_function = false;
+			bool is_struct = in_block && _table != null;
 			bool first_loop = true;
 
 			if (scan.Peek().type != Token.Type.SEMICOLON)
@@ -704,9 +726,9 @@ namespace Compiler
 						scan.Read();
 					}
 
-					var = ParseDeclarator(type);
+					var = ParseDeclarator(type, false, in_block);
 
-					if (var.GetType() is SymTypeFunc && !((SymTypeFunc)var.GetType()).IsEmptyBody()) // значит это функция
+					if (var.type is SymTypeFunc && !((SymTypeFunc)var.type).IsEmptyBody()) // значит это функция
 					{
 						is_function = true;
 					}
@@ -778,7 +800,14 @@ namespace Compiler
 				SymTable items = new SymTable();
 				while (scan.Peek().type != Token.Type.RBRACE && scan.Peek().type != Token.Type.EOF)
 				{
-					ParseDeclaration(true, items);
+					try
+					{
+						ParseDeclaration(true, items);
+					}
+					catch (Compiler.Exception e)
+					{
+						ToHandlerException(e);
+					}
 				}
 
 				CheckToken(scan.Peek(), Token.Type.RBRACE, true);
@@ -882,7 +911,6 @@ namespace Compiler
 						throw new Symbol.Exception(e.Message, scan.GetPos(), scan.GetLine());
 					}
 					scan.Read();
-
 					break;
 			}
 
@@ -897,13 +925,12 @@ namespace Compiler
 					throw new Symbol.Exception(e.Message, scan.GetPos(), scan.GetLine());
 				}
 			}
-
 			return type;
 		}
 
-		private SymVar ParseDeclarator(SymType type, bool is_abstract = false)
+		private SymVar ParseDeclarator(SymType type, bool is_abstract = false, bool in_block = true)
 		{
-			Three<SymType, SymVar, SymType> res = ParseInternalDeclarator(type, is_abstract);
+			Three<SymType, SymVar, SymType> res = ParseInternalDeclarator(type, is_abstract, in_block);
 
 			if (res == null)
 			{
@@ -934,7 +961,7 @@ namespace Compiler
 			return l_type_part;
 		}
 
-		private Three<SymType, SymVar, SymType> ParseInternalDeclarator(SymType type = null, bool is_abstract = false)
+		private Three<SymType, SymVar, SymType> ParseInternalDeclarator(SymType type = null, bool is_abstract = false, bool in_block = true)
 		{
 			Pair<SymType, SymType> right_part = new Pair<SymType,SymType>(), left_part = new Pair<SymType,SymType>();
 			bool possibly_function = false;
@@ -964,7 +991,7 @@ namespace Compiler
 
 				case Token.Type.LPAREN:
 					scan.Read();
-					Three<SymType, SymVar, SymType> res = ParseInternalDeclarator(null, is_abstract);
+					Three<SymType, SymVar, SymType> res = ParseInternalDeclarator(null, is_abstract, in_block);
 					if (res == null)
 					{
 						throw new Symbol.Exception("требуется идентификатор", scan.GetPos(), scan.GetLine());
@@ -997,6 +1024,11 @@ namespace Compiler
 				switch (scan.Peek().type)
 				{
 					case Token.Type.LPAREN:
+						if (possibly_function && in_block)
+						{
+							CheckToken(scan.Peek(), Token.Type.SEMICOLON);
+						}
+
 						scan.Read();
 
 						SymTypeFunc func = new SymTypeFunc();
@@ -1014,12 +1046,26 @@ namespace Compiler
 
 						if (scan.Peek().type != Token.Type.RPAREN)
 						{
-							((SymTypeFunc)right_part.last).SetParam(ParseParameterDeclaration());
+							try
+							{
+								((SymTypeFunc)right_part.last).SetParam(ParseParameterDeclaration());
+							}
+							catch (Symbol.Exception e)
+							{
+								logger.Add(e);
+							}
 
 							while (scan.Peek().type == Token.Type.COMMA)
 							{
 								scan.Read();
-								((SymTypeFunc)right_part.last).SetParam(ParseParameterDeclaration());
+								try
+								{
+									((SymTypeFunc)right_part.last).SetParam(ParseParameterDeclaration());
+								}
+								catch (Symbol.Exception e)
+								{
+									logger.Add(e);
+								}
 							}
 						}
 

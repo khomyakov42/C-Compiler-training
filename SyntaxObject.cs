@@ -8,7 +8,7 @@ namespace Compiler
 {
 	abstract class SynObj
 	{
-		public class Exception : System.Exception
+		public class Exception : Compiler.Exception
 		{
 			public Exception(string s) : base(s) { }
 		}
@@ -48,7 +48,7 @@ namespace Compiler
 
 		protected string getIndentString(int level)
 		{
-			return new String(' ', level * INDENT);
+			return '\n' + new String(' ', level * INDENT);
 		}
 	}
 
@@ -123,10 +123,10 @@ namespace Compiler
 
 		public override string ToString(int level = 0)
 		{
-			string s = '\n' + getIndentString(level);
+			string s = getIndentString(level);
 			s += SEP + oper.strval + SEP;
-			s += '\n' + lnode.ToString(level + 1);
-			s += '\n' + rnode.ToString(level + 1);
+			s += lnode.ToString(level + 1);
+			s += rnode.ToString(level + 1);
 			return s;
 		}
 	}

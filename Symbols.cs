@@ -9,11 +9,10 @@ namespace Compiler
 	
 	class SymTable
 	{
-		public class Exception : System.Exception 
+		public class Exception : Compiler.Exception
 		{
-			public Exception(string msg) : base(msg) { }
+			public Exception(string s) : base(s) { }
 		}
-
 		public SymTable parent = null;
 		Dictionary<string, SymVar> vars = new Dictionary<string, SymVar>();
 		Dictionary<string, SymType> types = new Dictionary<string, SymType>();
@@ -22,8 +21,14 @@ namespace Compiler
 		{
 			if (vars.ContainsKey(var.GetName()))
 			{
-				if((Symbol)var is SymTypeFunc && ((SymTypeFunc)(Symbol)var).Equals((SymTypeFunc)(Symbol)vars[var.GetName()]))
-				throw new Symbol.Exception("переопределение \"" + var.GetName() + "\"", var.token.pos, var.token.line);
+				if (var.type is SymTypeFunc && var.Equals(vars[var.name]))
+				{
+					vars[var.name] = var;
+					return;
+				}
+				Symbol.Exception e = new Symbol.Exception("переопределение \"" + var.GetName() + "\"", var.token.pos, var.token.line);
+				e.Data["delayed"] = true;
+				throw e;
 			}
 
 			vars.Add(var.GetName(), var);//qutim
@@ -267,7 +272,7 @@ namespace Compiler
 
 	class Symbol
 	{
-		public class Exception : System.Exception 
+		public class Exception : Compiler.Exception 
 		{
 			public int pos, line;
 			public Exception(string s = "", int pos = -1, int line = -1) : base(s) 
@@ -279,7 +284,7 @@ namespace Compiler
 
 		public const string UNNAMED = "$UNNAMED$";
 
-		protected string name;
+		public string name;
 
 		public Symbol(string name)
 		{
@@ -311,8 +316,8 @@ namespace Compiler
 
 	class SymVar : Symbol
 	{
-		protected SymType type = null;
-		protected SynExpr value = null;
+		public SymType type = null;
+		public SynExpr value = null;
 		public Token token;
 		public int line, pos;
 
@@ -333,14 +338,18 @@ namespace Compiler
 			value = val;
 		}
 
-		new public SymType GetType()
-		{
-			return this.type;
-		}
-
 		public override string ToString()
 		{
 			return this.name + "   " + this.type.ToString() + "   " + (this.value == null? "": "\n = " + this.value.ToString());
+		}
+
+		public override bool Equals(object obj)
+		{
+			if (obj is SymVar)
+			{
+				return this.name == ((SymVar)obj).name && this.type.Equals(((SymVar)obj).type);
+			}
+			return base.Equals(obj);
 		}
 	}
 
@@ -356,6 +365,20 @@ namespace Compiler
 		{
 			this.line = line;
 			this.pos = pos;
+		}
+
+		public override bool Equals(object obj)
+		{
+			if (obj is SymVarParam)
+			{
+				if (((SymVarParam)obj).name == UNNAMED || this.name == UNNAMED || this.name == ((SymVarParam)obj).name)
+				{
+					return this.type.Equals(((SymVarParam)obj).type);
+				}
+				return false;
+			}
+
+			return base.Equals(obj);
 		}
 	}
 
@@ -393,6 +416,20 @@ namespace Compiler
 			line = t.line;
 			pos = t.pos;
 		}
+
+		override public bool Equals(object obj)
+		{
+			if (obj is SymTypeScalar)
+			{
+				return this.name == ((SymTypeScalar)obj).name;
+			}
+			else if (obj is SymTypeAlias)
+			{
+				return this.Equals(((SymTypeAlias)obj).type);
+			}
+
+			return base.Equals(obj);
+		}
 	}
 
 	class SymTypeVoid : SymTypeScalar
@@ -421,7 +458,7 @@ namespace Compiler
 
 	abstract class SymRefType : SymType
 	{
-		protected SymType type;
+		public SymType type;
 
 		public SymRefType(SymType t = null)
 		{
@@ -477,15 +514,15 @@ namespace Compiler
 		public void SetParam(SymVarParam p)
 		{
 			string error = "недопустимо использование типа \"void\"";
-			if (args.Count == 1 && args[0].GetType() is SymTypeVoid)
+			if (args.Count == 1 && args[0].type is SymTypeVoid)
 			{
-				SymTypeVoid t = (SymTypeVoid)args[0].GetType();
+				SymTypeVoid t = (SymTypeVoid)args[0].type;
 				throw new Symbol.Exception(error, t.pos, t.line);
 			}
 
-			if (p.GetType() is SymTypeVoid)
+			if (p.type is SymTypeVoid)
 			{
-				SymTypeVoid t = (SymTypeVoid)p.GetType();
+				SymTypeVoid t = (SymTypeVoid)p.type;
 				if (p.GetName() != UNNAMED || args.Count > 0)
 				{
 					throw new Symbol.Exception(error, t.pos, t.line);
@@ -499,7 +536,7 @@ namespace Compiler
 		{
 			body = _body;
 
-			if (args.Count == 1 && args[0].GetType() is SymTypeVoid && args[0].GetName() == UNNAMED)
+			if (args.Count == 1 && args[0].type is SymTypeVoid && args[0].GetName() == UNNAMED)
 			{
 				return;
 			}
@@ -513,9 +550,9 @@ namespace Compiler
 					throw e;
 				}
 
-				if (arg.GetType() is SymTypeVoid)
+				if (arg.type is SymTypeVoid)
 				{
-					SymTypeVoid t = (SymTypeVoid)arg.GetType();
+					SymTypeVoid t = (SymTypeVoid)arg.type;
 					Symbol.Exception e = new Symbol.Exception("недопустимо использование типа \"void\"", t.pos, t.line);
 					e.Data["delayed"] = true;
 					throw e;
@@ -528,22 +565,29 @@ namespace Compiler
 			return body == null;
 		}
 
-		public bool Equals(SymTypeFunc obj)
+		override public bool Equals(Object obj)
 		{
-			if (name != obj.name || this.type != obj.type)
-				return false;
+			if(obj is SymTypeFunc)
+			{
+				if (name != ((SymTypeFunc)obj).name || !this.type.Equals(((SymTypeFunc)obj).type))
+					return false;
 
-			foreach(var arg1 in args){
-				foreach (var arg2 in ((SymTypeFunc)obj).args)
+				int i = 0, j = 0;
+				while (i < this.args.Count && j < ((SymTypeFunc)obj).args.Count)
 				{
-					if (arg2 != arg1)
+					while (i < this.args.Count && this.args[i].type is SymTypeVoid) { i++; }
+					while (j < ((SymTypeFunc)obj).args.Count && ((SymTypeFunc)obj).args[j].type is SymTypeVoid) { j++; }
+
+					if (!(this.args[i].Equals(((SymTypeFunc)obj).args[j])))
 					{
 						return false;
 					}
+					i++; j++;
 				}
-			}
 
-			return true;
+				return (i == this.args.Count || i == 0) && (j == ((SymTypeFunc)obj).args.Count || j == 0);
+			}
+			return base.Equals(obj);
 		}
 
 		public override string ToString()
@@ -601,13 +645,12 @@ namespace Compiler
 		}
 	}
 
-	class SymTypeAlias : SymType
+	class SymTypeAlias : SymRefType
 	{
-		public int line, pos;
-		SymType type;
+		protected int line = -1, pos = -1;
 		public SymTypeAlias(SymVar var)
 		{
-			this.type = var.GetType();
+			this.type = var.type;
 			this.name = var.GetName();
 			this.line = var.token.line;
 			this.pos = var.token.pos;
@@ -616,6 +659,21 @@ namespace Compiler
 		public override string ToString()
 		{
 			return type.ToString();
+		}
+
+		public override SymTypeScalar GetTailType()
+		{
+			return type.GetTailType();
+		}
+
+		public override bool Equals(object obj)
+		{
+			if (obj is SymTypeAlias)
+			{
+				return this.name == ((SymTypeAlias)obj).name && this.type.Equals(((SymTypeAlias)obj).type);
+			}
+
+			return base.Equals(obj);
 		}
 	}
 
