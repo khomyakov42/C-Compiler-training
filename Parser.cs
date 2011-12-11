@@ -47,7 +47,7 @@ namespace Compiler
 				base("Ошибка синтаксиса в строке " + line + " позиции " + pos + ": " + message + "\n") {}
 		}
 
-		class Logger
+		public class Logger
 		{
 			List<System.Exception> list;
 
@@ -71,11 +71,16 @@ namespace Compiler
 
 				return s;
 			}
+
+			public bool isEmpty()
+			{
+				return list.Count == 0;
+			}
 		}
 
 		Scaner scan;
-		Logger logger;
-		StackTable tables = new StackTable();
+		public Logger logger;
+		public StackTable tables = new StackTable();
 		bool parse_const_expr = false;
 
 		private Token CheckToken(Token t, Token.Type type, bool get_next_token = false)
@@ -115,7 +120,7 @@ namespace Compiler
 					logger.Add(e);
 				}
 			}
-			while (t.type != Token.Type.EOF && t.type != Token.Type.SEMICOLON && t.type != Token.Type.RBRACE || count_br != 0);
+			while (t.type != Token.Type.EOF && (t.type != Token.Type.SEMICOLON && t.type != Token.Type.RBRACE || count_br != 0));
 			
 		}
 
@@ -145,7 +150,6 @@ namespace Compiler
 		public void Parse()
 		{
 			Root tree = new Root();
-
 			do
 			{
 				try
@@ -172,7 +176,7 @@ namespace Compiler
 		private SynExpr ParseExpression(bool bind = true, bool parse_list = false)
 		{
 			SynExpr node = null;
-			ArrayList expr_list = new ArrayList();
+			List<SynExpr> expr_list = new List<SynExpr>();
 
 			while(true)
 			{
@@ -270,24 +274,42 @@ namespace Compiler
 			switch (scan.Peek().type)
 			{
 				case Token.Type.CONST_CHAR:
+					return new ConstExpr(scan.Read(), new SymTypeChar());
+
 				case Token.Type.CONST_DOUBLE:
+					return new ConstExpr(scan.Read(), new SymTypeDouble());
+
 				case Token.Type.CONST_INT:
+					return new ConstExpr(scan.Read(), new SymTypeInt());
+
 				case Token.Type.CONST_STRING:
-					return new ConstExpr(scan.Read());
+					return new ConstExpr(scan.Read(), new SymTypePointer(new SymTypeChar()));
 
 				case Token.Type.IDENTIFICATOR:
 					if (this.parse_const_expr)
 					{
-						return new ConstExpr(scan.Read());
+							if (!tables.ContainsConst(scan.Peek().strval))
+							{
+								if (tables.ContainsIdentifier(scan.Peek().strval))
+								{
+									throw new SynObj.Exception("требуется константное выражение");
+								}
+
+								throw new Symbol.Exception(scan.Peek().strval + ": необъявленный идентификатор", scan.GetLine(), scan.GetPos());
+							}
+							Token c = scan.Read();
+							return new ConstExpr(c, tables.GetConst(c.strval).type);
 					}
 
 					if (!tables.ContainsIdentifier(scan.Peek().strval))
 					{
-						tables.AddDummyVar(scan.Peek().strval);
-						this.logger.Add(new Parser.Exception(scan.Peek().strval + ": необъявленный идентификатор", scan.GetLine(), scan.GetPos()));
+						//tables.AddVar(new SymDummyVar(scan.Peek()));
+						//this.logger.Add(new Symbol.Exception(scan.Peek().strval + ": необъявленный идентификатор", scan.GetLine(), scan.GetPos()));
+						throw new Symbol.Exception(scan.Peek().strval + ": необъявленный идентификатор", scan.GetLine(), scan.GetPos());
 					}
 
-					return new IdentExpr(scan.Read());
+					Token id = scan.Read();
+					return new IdentExpr(id, tables.GetIdentifier(id.strval));
 
 				case Token.Type.LPAREN:
 					scan.Read();
@@ -305,9 +327,7 @@ namespace Compiler
 		{
 			SynExpr node = expr_node == null? ParsePrimaryExpr(): expr_node, res = null;
 
-
 			while(true){
-				
 				switch (scan.Peek().type)
 				{
 					case Token.Type.OP_INC:
@@ -317,15 +337,19 @@ namespace Compiler
 						break;
 
 					case Token.Type.OP_DOT:
-					case Token.Type.OP_REF:
-						res = new RefOper(scan.Read());
-						((RefOper)res).SetParent(node);
-						((RefOper)res).SetChild(scan.Peek().type == Token.Type.IDENTIFICATOR? new IdentExpr(scan.Read()) : null);
+//					case Token.Type.OP_REF:
+						res = new DotOper(scan.Read());
+						SymType t = node.getType();
+							((DotOper)res).SetParent(node);
+
+						CheckToken(scan.Peek(), Token.Type.IDENTIFICATOR);
+						Token id = scan.Read();
+							((DotOper)res).SetChild(new IdentExpr(id, ((SymTypeStruct)t).fields.GetIdentifier(id.strval)));
 						break;
 
 					case Token.Type.LPAREN:
+						res = new CallOper(node, scan.GetLine(), scan.GetPos());
 						scan.Read();
-						res = new CallOper(node);
 
 						if (scan.Peek().type == Token.Type.RPAREN)
 						{
@@ -336,13 +360,13 @@ namespace Compiler
 						SynExpr args = ParseExpression(true, true);
 
 						CheckToken(scan.Peek(), Token.Type.RPAREN, true);
-						((CallOper)res).AddArgument(args);
+/*!!!!!!*/			((CallOper)res).AddArgument(args);
 						break;
 
 					case Token.Type.LBRACKET:
-						res = new RefOper(scan.Read());
-						((RefOper)res).SetParent(node);
-						((RefOper)res).SetChild(ParseExpression());
+						res = new SqBrkOper(scan.Read());
+						((SqBrkOper)res).SetParent(node);
+						((SqBrkOper)res).SetChild(ParseExpression());
 
 						CheckToken(scan.Peek(), Token.Type.RBRACKET, true);
 						break;
@@ -378,12 +402,13 @@ namespace Compiler
 					return node;
 				
 				case Token.Type.LPAREN:
+					int l = scan.GetLine(), p = scan.GetPos();
 					scan.Read();
 					SynExpr res = null;
 
-					if (IsTypeName(scan.Peek()))
+					if (IsType(scan.Peek()))
 					{
-						res = new CastExpr(ParseTypeName());
+						res = new CastExpr(ParseType(), l, p);
 						CheckToken(scan.Peek(), Token.Type.RPAREN, true);
 						((CastExpr)res).SetOperand(ParseUnaryExpr());
 						return res;
@@ -405,9 +430,9 @@ namespace Compiler
 
 					scan.Read();
 					node = new SizeofOper(kw);
-					if (IsTypeName(scan.Peek()))
+					if (IsType(scan.Peek()))
 					{
-						node.SetOperand(ParseTypeName());
+						((SizeofOper)node).SetOperand(ParseType());
 					}
 					else
 					{
@@ -419,37 +444,6 @@ namespace Compiler
 
 				default:
 					return ParsePostfixExpr();
-			}
-		}
-
-		private SynExpr ParseTypeName()
-		{
-			switch (scan.Peek().type)
-			{
-				case Token.Type.KW_DOUBLE:
-				case Token.Type.KW_INT:
-				case Token.Type.KW_CHAR:
-					return new IdentExpr(scan.Read());
-
-				case Token.Type.KW_STRUCT:
-					return null;
-
-				default:
-					return null;
-			}
-		}
-
-		private bool IsTypeName(Token t)
-		{
-			switch (t.type)
-			{
-				case Token.Type.KW_DOUBLE:
-				case Token.Type.KW_INT:
-				case Token.Type.KW_CHAR:
-				case Token.Type.KW_STRUCT:
-					return true;
-				default:
-					return false;
 			}
 		}
 
@@ -506,14 +500,14 @@ namespace Compiler
 		{
 			this.parse_const_expr = true;
 			SynExpr res = null;
-			try
-			{
+//			try
+//			{
 				res = ParseExpression(true, is_list);
-			}
-			catch (SynObj.Exception e)
-			{
-				this.logger.Add(new Parser.Exception(e.Message, scan.GetLine(), scan.GetPos()));
-			}
+//			}
+//			catch (SynObj.Exception e)
+//			{
+//				this.logger.Add(new Parser.Exception(e.Message, scan.GetLine(), scan.GetPos()));
+//			}
 
 			this.parse_const_expr = false;
 
@@ -838,23 +832,30 @@ namespace Compiler
 				scan.Read();
 				if (scan.Peek().type != Token.Type.RBRACE)
 				{
-					scan.Read();
-					string name = "";
-					SynExpr val = null;
+					SymVar var = null;
 					do
 					{
 						CheckToken(scan.Peek(), Token.Type.IDENTIFICATOR);
-						name = scan.Read().strval;
+						var = new SymVar(scan.Read());
+						var.SetType(tables.GetType("int"));
 
 						if (scan.Peek().type == Token.Type.OP_ASSIGN)
 						{
 							scan.Read();
-							val = ParseConstExpr(false);
+							var.SetInitValue(new SynInit(ParseConstExpr(false)));
 						}
 						
-						type.AddEnumerator(name, val);
-
-					} while (scan.Peek().type == Token.Type.COMMA && scan.Peek().type != Token.Type.EOF);
+						type.AddEnumerator(var);
+						tables.AddConst(var);
+						if (scan.Peek().type == Token.Type.COMMA)
+						{
+							scan.Read();
+						}
+						else
+						{
+							break;
+						}
+					} while (scan.Peek().type != Token.Type.EOF);
 				}
 				CheckToken(scan.Peek(), Token.Type.RBRACE, true);
 			}
@@ -984,7 +985,14 @@ namespace Compiler
 					}
 					else
 					{
-						var = new SymVar(scan.Read());
+						if (tables.isGlobalTable())
+						{
+							var = new SymVarGlobal(scan.Read());
+						}
+						else
+						{
+							var = new SymVarLocal(scan.Read());
+						}
 						possibly_function = true;
 					}
 					break;
@@ -1019,7 +1027,10 @@ namespace Compiler
 					((SymTypeVoid)left_part.first).pos, ((SymTypeVoid)left_part.first).line);
 			}
 
-			while (true)
+
+			bool next = true;
+
+			while (next)
 			{
 				switch (scan.Peek().type)
 				{
@@ -1074,7 +1085,11 @@ namespace Compiler
 						{
 							if (scan.Peek().type == Token.Type.LBRACE)
 							{
+								((SymTypeFunc)right_part.last).SetType(left_part.first);
+								var.SetType(right_part.first);
+								tables.AddVar(var);
 								((SymTypeFunc)right_part.last).SetBody(ParseCompound(func));
+								next = false;
 							}
 						}
 						break;
@@ -1103,20 +1118,22 @@ namespace Compiler
 						break;
 
 					default:
-						if (right_part.last != null)
-						{
-							((SymRefType)right_part.last).SetType(left_part.first);
-						}
-						else
-						{
-							right_part.first = left_part.first;
-						}
-
-						return new Three<SymType,SymVar,SymType>(right_part.first, var, left_part.last);
+						next = false;
+						break;
 				}
-
 				possibly_function = false;
 			}
+
+			if (right_part.last != null)
+			{
+				((SymRefType)right_part.last).SetType(left_part.first);
+			}
+			else
+			{
+				right_part.first = left_part.first;
+			}
+
+			return new Three<SymType, SymVar, SymType>(right_part.first, var, left_part.last);
 		}
 
 		private SymVarParam ParseParameterDeclaration()
@@ -1133,7 +1150,7 @@ namespace Compiler
 			}
 
 			SynExpr val = null;
-			val = ParseExpression();
+			val = ParseConstExpr(false);
 
 			return val == null ? null : new SynInit(val);
 		}
@@ -1145,8 +1162,8 @@ namespace Compiler
 				return null;
 			}
 
+			SynInitList res = new SynInitList(scan.GetLine(), scan.GetPos());
 			scan.Read();
-			SynInitList res = new SynInitList();
 
 			res.AddInit(ParseInit());
 			while (scan.Peek().type == Token.Type.COMMA)
@@ -1158,6 +1175,7 @@ namespace Compiler
 
 			return new SynInit(res);
 		}
+		
 		#endregion
 	}
 }

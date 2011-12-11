@@ -14,8 +14,31 @@ namespace Compiler
 			public Exception(string s) : base(s) { }
 		}
 		public SymTable parent = null;
-		Dictionary<string, SymVar> vars = new Dictionary<string, SymVar>();
-		Dictionary<string, SymType> types = new Dictionary<string, SymType>();
+		public Dictionary<string, SymVar> vars = new Dictionary<string, SymVar>();
+		public Dictionary<string, SymType> types = new Dictionary<string, SymType>();
+		public Dictionary<string, SymVar> consts = new Dictionary<string, SymVar>();
+
+		public void AddConst(SymVar var)
+		{
+			if (consts.ContainsKey(var.name))
+			{
+				Symbol.Exception e = new Symbol.Exception("переопределение \"" + var.name + "\"", var.pos, var.line);
+				e.Data["delayed"] = true;
+				throw e;
+			}
+
+			consts.Add(var.name, var);
+		}
+
+		public bool ContainsConst(string name)
+		{
+			return consts.ContainsKey(name);
+		}
+
+		public SymVar GetConst(string name)
+		{
+			return consts[name];
+		}
 
 		public void AddVar(SymVar var)
 		{
@@ -32,11 +55,6 @@ namespace Compiler
 			}
 
 			vars.Add(var.GetName(), var);//qutim
-		}
-
-		public void AddDummyVar(string name)
-		{
-			vars.Add(name, null);
 		}
 
 		public void AddType(SymType type)
@@ -62,6 +80,11 @@ namespace Compiler
 			}
 
 			return types[name];
+		}
+
+		public SymVar GetIdentifier(string name)
+		{
+			return vars[name];
 		}
 
 		public bool ContainsIdentifier(string name)
@@ -98,12 +121,20 @@ namespace Compiler
 				s += x.Key + " " + x.Value.ToString() + "\n\n";
 			}
 
+			s += "\n" + (is_struct_items ? "const::" : "CONST::") + "\n";
+			
+			foreach (var x in consts)
+			{
+				s += x.Key + " " + x.Value.ToString() + "\n\n";
+			}
+
 			return s;
 		}
 	}
 
 	class StackTable
 	{
+		
 		class Node : SymTable
 		{
 			public class Iterator{
@@ -113,6 +144,17 @@ namespace Compiler
 				{
 					root = node;
 					cur = root;
+				}
+
+				public bool MovePrev()
+				{
+					if (cur.parent == null)
+					{
+						return false;
+					}
+
+					cur = (Node)cur.parent;
+					return true;
 				}
 
 				public bool MoveNext()
@@ -167,6 +209,65 @@ namespace Compiler
 			}
 		}
 
+		public class Iterator
+		{
+			Node cur, root;
+
+			public Iterator(StackTable tbs)
+			{
+				root = tbs.root;
+				cur = root;
+			}
+
+			public bool MovePrev()
+			{
+				if (cur.parent == null)
+				{
+					return false;
+				}
+
+				cur = (Node)cur.parent;
+				return true;
+			}
+
+			public bool MoveNext()
+			{
+				if (cur.children.Count == 0)
+				{
+					if (cur.parent == null)
+					{
+						return false;
+					}
+
+					Node p = (Node)cur.parent;
+
+					while (p != null)
+					{
+						for (int i = 0; i < p.children.Count; i++)
+						{
+							if (p.children[i] == cur && i + 1 < p.children.Count)
+							{
+								cur = p.children[i + 1];
+								return true;
+							}
+						}
+						p = (Node)p.parent;
+					}
+					return false;
+				}
+				else
+				{
+					cur = cur.children[0];
+					return true;
+				}
+			}
+
+			public SymTable Current()
+			{
+				return cur;
+			}
+		}
+
 		public int depth = 0;
 
 		Node root, current;
@@ -201,14 +302,44 @@ namespace Compiler
 			depth--;
 		}
 
+		public void AddConst(SymVar c)
+		{
+			current.AddConst(c);
+		}
+
+		public bool ContainsConst(string name)
+		{
+			Node.Iterator itr = new Node.Iterator(current);
+			do
+			{
+				if (itr.Current().ContainsConst(name))
+				{
+					return true;
+				}
+			}
+			while (itr.MovePrev());
+
+			return false;
+		}
+
+		public SymVar GetConst(string name)
+		{
+			Node.Iterator itr = new Node.Iterator(current);
+			do
+			{
+				if (itr.Current().ContainsConst(name))
+				{
+					return itr.Current().GetConst(name);
+				}
+			}
+			while (itr.MovePrev());
+
+			return root.GetConst(name);
+		}
+
 		public void AddVar(SymVar var)
 		{
 			current.AddVar(var);
-		}
-
-		public void AddDummyVar(string name)
-		{
-			current.AddDummyVar(name);
 		}
 
 		public void AddType(SymType t)
@@ -218,7 +349,7 @@ namespace Compiler
 
 		public SymType GetType(string name)
 		{
-			Node.Iterator itr = new Node.Iterator(root);
+			Node.Iterator itr = new Node.Iterator(current);
 			do 
 			{
 				if (itr.Current().ContainsType(name))
@@ -226,28 +357,43 @@ namespace Compiler
 					return itr.Current().GetType(name);
 				}
 			} 
-			while (itr.MoveNext());
+			while (itr.MovePrev());
 
 			return root.GetType(name);
 		}
 
 		public bool ContainsType(string name)
 		{
-			try
+			Node.Iterator itr = new Node.Iterator(current);
+			do
 			{
-				GetType(name);
-				return true;
+				if (itr.Current().ContainsType(name))
+				{
+					return true;
+				}
 			}
-			catch (SymTable.Exception)
-			{
-				return false;
-			}
+			while (itr.MovePrev());
+
+			return false;
 		}
 
+		public SymVar GetIdentifier(string name)
+		{
+			Node.Iterator itr = new Node.Iterator(current);
+			do
+			{
+				if (itr.Current().ContainsIdentifier(name))
+				{
+					return itr.Current().GetIdentifier(name);
+				}
+			}
+			while (itr.MovePrev());
+			return root.GetIdentifier(name);
+		}
 
 		public bool ContainsIdentifier(string name)
 		{
-			Node.Iterator itr = new Node.Iterator(root);
+			Node.Iterator itr = new Node.Iterator(current);
 
 			do
 			{
@@ -256,9 +402,14 @@ namespace Compiler
 					return true;
 				}
 			}
-			while (itr.MoveNext());
+			while (itr.MovePrev());
 
 			return false;
+		}
+
+		public bool isGlobalTable()
+		{
+			return root == current;
 		}
 
 		public override string ToString()
@@ -335,6 +486,19 @@ namespace Compiler
 
 		public void SetInitValue(SynInit val)
 		{
+		/*	if (!val.getType().Equals(type))
+			{
+				Symbol.Exception e = new Symbol.Exception("значение типа \"" + val.getType().ToString() 
+					+ "\" нельзя использовать для инициализации сущности типа \"" + type.ToString() + "\"",
+					val.pos, val.line);
+				throw e;
+			}*/
+
+			value = val;
+		}
+
+		public void SetInitValue(SynInitList val)
+		{
 			value = val;
 		}
 
@@ -350,6 +514,22 @@ namespace Compiler
 				return this.name == ((SymVar)obj).name && this.type.Equals(((SymVar)obj).type);
 			}
 			return base.Equals(obj);
+		}
+	}
+
+	class SymDummyVar : SymVar
+	{
+		public SymDummyVar(Token t)
+		{
+			name = t.strval;
+			line = t.line;
+			pos = t.pos;
+			type = new SymTypeDummy();
+		}
+
+		public override string ToString()
+		{
+			return "DUMMY";
 		}
 	}
 
@@ -384,11 +564,14 @@ namespace Compiler
 
 	class SymVarLocal : SymVar
 	{
+		public SymVarLocal(Token t) : base(t) { }
+		public SymVarLocal() : base() { }
 	}
 
 	class SymVarGlobal : SymVar
 	{
-
+		public SymVarGlobal(Token t) : base(t) { }
+		public SymVarGlobal() : base() { }
 	}
 
 #endregion
@@ -399,6 +582,24 @@ namespace Compiler
 	{
 		virtual public SymTypeScalar GetTailType(){
 			return (SymTypeScalar)this;
+		}
+	}
+
+	class SymTypeDummy : SymType
+	{
+		public override bool Equals(object obj)
+		{
+			if (obj is SymType)
+			{
+				return true;
+			}
+
+			return base.Equals(obj);
+		}
+
+		public override string ToString()
+		{
+			return "DUMMY TYPE";
 		}
 	}
 
@@ -606,16 +807,11 @@ namespace Compiler
 
 	class SymTypeEnum : SymType
 	{
-		Dictionary<string, SynExpr> enumerators = new Dictionary<string, SynExpr>();
+		Dictionary<string, SymVar> enumerators = new Dictionary<string, SymVar>();
 
-		public void AddEnumerator(string name, SynExpr val)
+		public void AddEnumerator(SymVar var)
 		{
-			this.enumerators.Add(name, val);
-		}
-
-		public void AddEnumerator(string name)
-		{
-			this.enumerators.Add(name, null);
+			this.enumerators.Add(var.name, var);
 		}
 
 		public override string ToString()
@@ -623,7 +819,7 @@ namespace Compiler
 			string s = "ENUM " + this.name + " {\n";
 			foreach (var e in this.enumerators)
 			{
-				s += e.Key + (e.Value == null ? "" : "=" + e.Value.ToString()) + '\n';
+				s += e.Value.ToString() + '\n';
 			}
 			s += "}";
 			return s;
@@ -632,7 +828,7 @@ namespace Compiler
 
 	class SymTypeStruct : SymType
 	{
-		SymTable fields;
+		public SymTable fields;
 
 		public void SetItems(SymTable table)
 		{

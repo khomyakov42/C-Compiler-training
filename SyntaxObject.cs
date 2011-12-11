@@ -21,6 +21,7 @@ namespace Compiler
 		};
 
 		public Type type;
+		public int line = -1, pos = -1;
 		protected const int INDENT = 5;
 		protected const char SEP = '\"';
 
@@ -76,12 +77,15 @@ namespace Compiler
 
 #region Expression
 
-	abstract class SynExpr: SynObj { }
+	abstract class SynExpr: SynObj 
+	{
+		abstract public SymType getType();
+	}
 
 	class ExprList : SynExpr
 	{
-		ArrayList list;
-		public ExprList(ArrayList exprs)
+		List<SynExpr> list;
+		public ExprList(List<SynExpr> exprs)
 		{
 			list = exprs;
 		}
@@ -97,6 +101,16 @@ namespace Compiler
 			}
 
 			return s;
+		}
+
+		override public SymType getType()
+		{
+			if (this.list.Count == 0)
+			{
+				return null;
+			}
+
+			return this.list[0].getType();
 		}
 	}
 
@@ -114,6 +128,8 @@ namespace Compiler
 		public void SetLeftOperand(SynExpr l)
 		{
 			lnode = (SynExpr)CheckSynObj(l);
+			line = lnode.line;
+			pos = lnode.pos;
 		}
 
 		public void SetRightOperand(SynExpr r)
@@ -129,6 +145,53 @@ namespace Compiler
 			s += rnode.ToString(level + 1);
 			return s;
 		}
+
+		override public SymType getType()
+		{
+			SymType lt = lnode.getType(), rt = rnode.getType();
+			if (rt == null || lt == null)
+			{
+				return null;
+			}
+
+			switch (oper.type)
+			{
+ 				case Token.Type.OP_DIV:
+				case Token.Type.OP_PLUS:
+				case Token.Type.OP_SUB:
+					if (lt is SymTypeDouble || rt is SymTypeDouble)
+					{
+						return lt is SymTypeDouble ? lt : rt;
+					}
+
+					return lt;
+
+				case Token.Type.OP_MOD:
+
+				case Token.Type.OP_LESS:
+				case Token.Type.OP_LESS_OR_EQUAL:
+				case Token.Type.OP_MORE:
+				case Token.Type.OP_MORE_OR_EQUAL:
+				case Token.Type.OP_EQUAL:
+				case Token.Type.OP_NOT_EQUAL:
+				case Token.Type.OP_OR:
+				case Token.Type.OP_AND:
+
+				case Token.Type.OP_XOR:
+				case Token.Type.OP_BIT_OR:
+				case Token.Type.OP_BIT_AND:
+				case Token.Type.OP_L_SHIFT:
+				case Token.Type.OP_R_SHIFT:
+					if (lt is SymTypeInt && rt is SymTypeInt)
+					{
+						return lt;
+					}
+					return null;
+
+				default:
+					return null;
+			}
+		}
 	}
 
 	class AssignOper : BinaryOper
@@ -143,43 +206,49 @@ namespace Compiler
 	class ConstExpr : SynExpr
 	{
 		protected Token token;
+		public SymType type = null;
 
-		public ConstExpr(Token t)
+		public ConstExpr(Token t, SymType type)
 		{
-			type = Type.CONST;
-			switch (t.type)
-			{
-				case Token.Type.CONST_INT:
-				case Token.Type.CONST_CHAR:
-				case Token.Type.CONST_DOUBLE:
-				case Token.Type.CONST_STRING:
-					token = t;
-					break;
-
-				default:
-					throw new SynObj.Exception("требуется константное выражение");
-			}
+			token = t;
+			line = t.line;
+			pos = t.pos;
+			this.type = type;
 		}
 
 		public override string ToString(int level = 0)
 		{
 			return getIndentString(level) + token.strval;
 		}
+
+		override public SymType getType()
+		{
+			return type;
+		}
 	}
 
 	class IdentExpr : SynExpr
 	{
-		protected Token token;
+		public Token token;
+		public SymVar var = null;
 
-		public IdentExpr(Token t)
+		public IdentExpr(Token t, SymVar v)
 		{
+			line = t.line;
+			pos = t.pos;
 			type = Type.IDENTIFIER;
+			var = v;
 			token = CheckToken(t, Token.Type.IDENTIFICATOR, "требуется идентификатор");
 		}
 
 		public override string ToString(int level = 0)
 		{
 			return getIndentString(level) + token.strval;
+		}
+
+		override public SymType getType()
+		{
+			return var.type;
 		}
 	}
 
@@ -191,6 +260,8 @@ namespace Compiler
 		public UnaryOper(Token op)
 		{
 			oper = op;
+			line = op.line;
+			pos = op.pos;
 		}
 
 		public void SetOperand(SynExpr operand)
@@ -210,6 +281,11 @@ namespace Compiler
 			s += operand.ToString(level + 1);
 			return s;
 		}
+
+		override public SymType getType()
+		{
+			return operand.getType();
+		}
 	}
 
 	class PostfixOper : UnaryOper
@@ -223,6 +299,11 @@ namespace Compiler
 			s += operand.ToString(level + 1);
 			return s;
 		}
+
+		override public SymType getType()
+		{
+			return operand.getType();
+		}
 	}
 
 	class CallOper : SynExpr
@@ -230,10 +311,12 @@ namespace Compiler
 		SynExpr operand;
 		ArrayList args = new ArrayList();
 
-		public CallOper(SynExpr opnd)
+		public CallOper(SynExpr opnd, int line, int pos)
 		{
 			type = Type.F_CALL;
 			operand = opnd;
+			this.line = line;
+			this.pos = pos;
 		}
 
 		public void AddArgument(SynExpr arg)
@@ -253,6 +336,11 @@ namespace Compiler
 			}
 			return s;
 		}
+
+		override public SymType getType()
+		{
+			return operand.getType();
+		}
 	}
 
 	class TerOper : SynExpr
@@ -263,6 +351,8 @@ namespace Compiler
 		{
 			type = Type.OP_TERN;
 			this.cond = cond;
+			this.line = cond.line;
+			this.pos = cond.pos;
 		}
 
 		public void SetTrueExpr(SynExpr node)
@@ -284,12 +374,17 @@ namespace Compiler
 			s += rnode.ToString(level + 1);
 			return s;
 		}
+
+		override public SymType getType()
+		{
+			return lnode.getType();
+		}
 	}
 
 	class RefOper : SynExpr
 	{
-		Token oper;
-		SynExpr parent, child;
+		protected Token oper;
+		protected SynExpr parent, child;
 
 		public RefOper(Token op)
 		{
@@ -297,14 +392,16 @@ namespace Compiler
 			oper = op;
 		}
 
-		public void SetParent(SynExpr parent)
+		virtual public void SetParent(SynExpr parent)
 		{
 			this.parent = (SynExpr)CheckSynObj(parent);
 		}
 
-		public void SetChild(SynExpr child)
+		virtual public void SetChild(SynExpr child)
 		{
 			this.child = (SynExpr)CheckSynObj(child, "требуется имя члена");
+			line = child.line;
+			pos = child.pos;
 		}
 
 		public override string ToString(int level = 0)
@@ -315,16 +412,42 @@ namespace Compiler
 			s += child.ToString(level + 1);
 			return s;
 		}
+
+		override public SymType getType()
+		{
+			return child.getType();
+		}
+	}
+
+	class DotOper : RefOper
+	{
+		public DotOper(Token t) : base(t) { }
+		override public void SetParent(SynExpr parent)
+		{
+			this.parent = parent;
+		}
+
+		public void SetChild(IdentExpr child)
+		{
+			line = child.line;
+			pos = child.pos;
+		}
+	}
+
+	class SqBrkOper : RefOper
+	{
+		public SqBrkOper(Token t) : base(t) { }
 	}
 
 	class CastExpr : SynExpr
 	{
-		SynObj type_name, operand;
+		SynObj operand;
+		SymType type_name;
 
-		public CastExpr(SynObj type_name)
+		public CastExpr(SymType type_name, int line, int pos)
 		{
 			type = Type.OP_CAST;
-			this.type_name = CheckSynObj(type_name);
+			this.type_name = type_name;
 		}
 
 		public void SetOperand(SynExpr operand)
@@ -334,13 +457,39 @@ namespace Compiler
 
 		public override string ToString(int level = 0)
 		{
-			return getIndentString(level) + SEP + "CAST" + SEP + type_name.ToString(level + 1) + operand.ToString(level + 1);
+			return getIndentString(level) + SEP + "CAST" + SEP + type_name.ToString() + operand.ToString(level + 1);
+		}
+
+		override public SymType getType()
+		{
+			return type_name;
 		}
 	}
 
 	class SizeofOper : PrefixOper
 	{
-		public SizeofOper(Token op) : base(op) { type = Type.OP_SIZEOF; }
+		new SymType operand;
+		public SizeofOper(Token op) : base(op) 
+		{
+			type = Type.OP_SIZEOF;
+			line = op.line;
+			pos = op.pos;
+		}
+
+		public void SetOperand(SymType operand)
+		{
+			this.operand = operand;
+		}
+
+		public override string ToString(int level = 0)
+		{
+			return getIndentString(level) + "SIZEOF" + operand.ToString();
+		}
+
+		override public SymType getType()
+		{
+			return new SymTypeInt();
+		}
 	}
 
 	class SynInit : SynExpr
@@ -349,17 +498,30 @@ namespace Compiler
 		public SynInit(SynExpr v)
 		{
 			this.val = v;
+			line = v.line;
+			pos = v.pos;
 		}
 
 		public override string ToString(int level = 0)
 		{
 			return val.ToString();
 		}
+
+		override public SymType getType()
+		{
+			return val.getType();
+		}
 	}
 
 	class SynInitList : SynExpr
 	{
 		List<SynInit> list = new List<SynInit>();
+
+		public SynInitList(int line, int pos)
+		{
+			this.line = line;
+			this.pos = pos;
+		}
 
 		public void AddInit(SynInit init)
 		{
@@ -377,6 +539,11 @@ namespace Compiler
 			}
 
 			return s + " }";
+		}
+
+		override public SymType getType()
+		{
+			return null;
 		}
 	}
 
