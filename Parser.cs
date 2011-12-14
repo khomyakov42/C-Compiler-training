@@ -294,8 +294,9 @@ namespace Compiler
 								{
 									throw new SynObj.Exception("требуется константное выражение");
 								}
-
-								throw new Symbol.Exception(scan.Peek().strval + ": необъявленный идентификатор", scan.GetLine(), scan.GetPos());
+								tables.AddVar(new SymSuperVar(scan.Peek()));
+								this.logger.Add(new Symbol.Exception(scan.Peek().strval + ": необъявленный идентификатор", scan.GetLine(), scan.GetPos()));
+								return new ConstExpr(scan.Peek(), tables.GetIdentifier(scan.Read().strval).type);
 							}
 							Token c = scan.Read();
 							return new ConstExpr(c, tables.GetConst(c.strval).type);
@@ -303,9 +304,9 @@ namespace Compiler
 
 					if (!tables.ContainsIdentifier(scan.Peek().strval))
 					{
-						//tables.AddVar(new SymDummyVar(scan.Peek()));
-						//this.logger.Add(new Symbol.Exception(scan.Peek().strval + ": необъявленный идентификатор", scan.GetLine(), scan.GetPos()));
-						throw new Symbol.Exception(scan.Peek().strval + ": необъявленный идентификатор", scan.GetLine(), scan.GetPos());
+						tables.AddVar(new SymSuperVar(scan.Peek()));
+						this.logger.Add(new Symbol.Exception(scan.Peek().strval + ": необъявленный идентификатор", scan.GetLine(), scan.GetPos()));
+						return new IdentExpr(scan.Peek(), tables.GetIdentifier(scan.Read().strval));
 					}
 
 					Token id = scan.Read();
@@ -357,10 +358,13 @@ namespace Compiler
 							break;
 						}
 
-						SynExpr args = ParseExpression(true, true);
-
+						ExprList args = (ExprList)ParseExpression(true, true);
+						foreach(var arg in args.list)
+						{
+							((CallOper)res).AddArgument(arg);
+						}
 						CheckToken(scan.Peek(), Token.Type.RPAREN, true);
-/*!!!!!!*/			((CallOper)res).AddArgument(args);
+
 						break;
 
 					case Token.Type.LBRACKET:
@@ -500,15 +504,7 @@ namespace Compiler
 		{
 			this.parse_const_expr = true;
 			SynExpr res = null;
-//			try
-//			{
-				res = ParseExpression(true, is_list);
-//			}
-//			catch (SynObj.Exception e)
-//			{
-//				this.logger.Add(new Parser.Exception(e.Message, scan.GetLine(), scan.GetPos()));
-//			}
-
+			res = ParseExpression(true, is_list);
 			this.parse_const_expr = false;
 
 			return res;
@@ -732,7 +728,6 @@ namespace Compiler
 						scan.Read();
 						var.SetInitValue(ParseInit());
 					}
-
 
 					if (is_struct)
 					{

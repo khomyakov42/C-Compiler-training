@@ -517,20 +517,36 @@ namespace Compiler
 		}
 	}
 
-	class SymDummyVar : SymVar
+	class SymSuperVar : SymVar
 	{
-		public SymDummyVar(Token t)
+		public const string NAME_IN_TABLE = "$SUPER VAR$";
+
+		public SymSuperVar(Token t) : base(t) 
 		{
-			name = t.strval;
-			line = t.line;
-			pos = t.pos;
-			type = new SymTypeDummy();
+			type = new SymSuperType();
+			name = NAME_IN_TABLE;
+		}
+
+		public SymSuperVar() : base() 
+		{
+			type = new SymSuperType();
+			name = NAME_IN_TABLE;
 		}
 
 		public override string ToString()
 		{
-			return "DUMMY";
+			return "SUPER VAR" + "   " + this.type.ToString();
 		}
+
+		public override bool Equals(object obj)
+		{
+			if (obj is SymVar)
+			{
+				return true;
+			}
+
+			return base.Equals(obj);
+		} 
 	}
 
 	class SymVarParam : SymVar
@@ -583,23 +599,31 @@ namespace Compiler
 		virtual public SymTypeScalar GetTailType(){
 			return (SymTypeScalar)this;
 		}
+
+		public abstract bool Compatible(SymType t);
 	}
 
-	class SymTypeDummy : SymType
+	class SymSuperType : SymType
 	{
+		public SymSuperType() { }
+
+		public override string ToString()
+		{
+			return "SUPER TYPE";
+		}
+
 		public override bool Equals(object obj)
 		{
 			if (obj is SymType)
 			{
 				return true;
 			}
-
 			return base.Equals(obj);
 		}
 
-		public override string ToString()
+		public override bool Compatible(SymType t)
 		{
-			return "DUMMY TYPE";
+			return true;
 		}
 	}
 
@@ -637,24 +661,44 @@ namespace Compiler
 	{
 		public SymTypeVoid(Token t) : base(t) { }
 		public SymTypeVoid() : base("void") { }
+
+		public override bool Compatible(SymType t)
+		{
+			return true;
+		}
 	}
 
 	class SymTypeDouble : SymTypeScalar
 	{
 		public SymTypeDouble(Token t) : base(t) { }
 		public SymTypeDouble() : base("double") { }
+
+		public override bool Compatible(SymType t)
+		{
+			return t is SymSuperType || t is SymTypeInt || t is SymTypeChar || t is SymTypeDouble;
+		}
 	}
 
 	class SymTypeChar : SymTypeScalar
 	{
 		public SymTypeChar(Token t) : base(t) { }
 		public SymTypeChar() : base("char") { }
+
+		public override bool Compatible(SymType t)
+		{
+			return t is SymTypeChar || t is SymTypeInt || t is SymSuperType || t is SymTypeFunc;
+		}
 	}
 
 	class SymTypeInt : SymTypeScalar
 	{
 		public SymTypeInt(Token t) : base(t) { }
 		public SymTypeInt() : base("int") { }
+
+		public override bool Compatible(SymType t)
+		{
+			return t is SymTypeInt || t is SymTypeChar || t is SymSuperType || t is SymTypeFunc;
+		}
 	}
 
 	abstract class SymRefType : SymType
@@ -699,6 +743,11 @@ namespace Compiler
 		public override string ToString()
 		{
 			return "ARRAY (" + (size == null? "" :size.ToString()) + ") OF " + type.ToString(); 
+		}
+
+		public override bool Compatible(SymType t)
+		{
+			return t is SymSuperType || t is SymTypeInt || t is SymTypeChar;
 		}
 	}
 
@@ -803,6 +852,11 @@ namespace Compiler
 			s += (body == null ? ") " : ") { " + body.ToString() + " }") + " RETURNED " + this.type.ToString();
 			return s;
 		}
+
+		public override bool Compatible(SymType t)
+		{
+			return t is SymSuperType || this.Equals(t);
+		}
 	}
 
 	class SymTypeEnum : SymType
@@ -824,6 +878,16 @@ namespace Compiler
 			s += "}";
 			return s;
 		}
+
+		public override bool Equals(object obj)
+		{
+			throw new Exception();
+		}
+
+		public override bool Compatible(SymType t)
+		{
+			return this.Equals(t);
+		}
 	}
 
 	class SymTypeStruct : SymType
@@ -838,6 +902,16 @@ namespace Compiler
 		public override string ToString()
 		{
 			return  "STRUCT " + this.name + "{" + fields.ToString(true) + "}";
+		}
+
+		public override bool Equals(object obj)
+		{
+			throw new Exception();
+		}
+
+		public override bool Compatible(SymType t)
+		{
+			return this.Equals(t);
 		}
 	}
 
@@ -871,6 +945,11 @@ namespace Compiler
 
 			return base.Equals(obj);
 		}
+
+		public override bool Compatible(SymType t)
+		{
+			return this.type.Compatible(t);
+		}
 	}
 
 	class SymTypePointer : SymRefType
@@ -883,6 +962,11 @@ namespace Compiler
 		public override string ToString()
 		{
 			return "POINTER TO " + type.ToString();
+		}
+
+		public override bool Compatible(SymType t)
+		{
+			return t is SymSuperType || t is SymTypeInt || t is SymTypeChar || t is SymTypePointer || t is SymTypeArray || t is SymTypeFunc;
 		}
 	}
 

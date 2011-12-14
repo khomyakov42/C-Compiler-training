@@ -1,0 +1,28 @@
+int *x1;
+char y1 = x1;
+
+char *x2;
+char y2 = x2;
+
+struct {int x;} *x3;
+char y3 = x3;
+
+enum {A, B, C} *x4;
+char y4 = x4;
+
+int y5 = "blablabla";
+char y6 = 'a';
+
+enum{A,B,C} (*x7)();
+char y7 = x7;
+
+char y8 = 12312;
+
+char y9 = .001;
+
+int x10[10];
+char *y10 = x10;
+
+enum {A, B, C} x11[];
+char *y11 = x11;
+

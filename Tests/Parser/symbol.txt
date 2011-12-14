@@ -1,0 +1,10 @@
+struct S{};
+
+S* f(S*s){
+	return s;
+}
+
+int main(){
+	S s, ss;
+	f(&s + &ss);
+}

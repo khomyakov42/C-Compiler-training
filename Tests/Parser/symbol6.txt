@@ -1,0 +1,21 @@
+
+int f(){
+	return 6;
+}
+
+struct {int x;} s;
+enum{A, B, C} e;
+int (*ptrf)();
+char a[10];
+int *ptr;
+int i = 4;
+
+int main(){
+	void* x1 = f;
+	void* x2 = e;
+	void* x3 = ptrf;
+	void* x4 = a;
+	void* x5 = ptr;
+	void* x6 = i;
+	void* x7 = '1';
+}

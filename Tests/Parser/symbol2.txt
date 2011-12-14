@@ -1,0 +1,3 @@
+char y;
+int x = y;
+char z = x;

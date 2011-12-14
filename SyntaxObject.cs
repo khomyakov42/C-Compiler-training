@@ -84,7 +84,7 @@ namespace Compiler
 
 	class ExprList : SynExpr
 	{
-		List<SynExpr> list;
+		public List<SynExpr> list;
 		public ExprList(List<SynExpr> exprs)
 		{
 			list = exprs;
@@ -144,6 +144,14 @@ namespace Compiler
 			s += lnode.ToString(level + 1);
 			s += rnode.ToString(level + 1);
 			return s;
+		}
+
+		public void Check()
+		{
+			if (!lnode.getType().Compatible(rnode.getType()))
+			{
+				throw new Symbol.Exception("тип \"" + lnode.getType().name + "\" несовместим с типом \"" + rnode.getType().ToString() +"\".", rnode.line, rnode.pos);
+			}
 		}
 
 		override public SymType getType()
