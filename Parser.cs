@@ -58,7 +58,10 @@ namespace Compiler
 
 			public void Add(System.Exception e)
 			{
-				list.Add(e);
+				if(e != null)
+				{
+					list.Add(e);
+				}
 			}
 
 			override public string ToString()
@@ -265,6 +268,16 @@ namespace Compiler
 					((BinaryOper)root).SetLeftOperand(lnode);
 					((BinaryOper)root).SetRightOperand(rnode);
 				}
+
+				try
+				{
+					//((BinaryOper)root).Check();
+				}
+				catch (Symbol.Exception e)
+				{
+					ToHandlerException(e);
+				}
+
 				lnode = root;
 			}
 		}
@@ -330,7 +343,7 @@ namespace Compiler
 
 			while(true){
 				switch (scan.Peek().type)
-				{
+				{ 
 					case Token.Type.OP_INC:
 					case Token.Type.OP_DEC:
 						res = new PostfixOper(scan.Read());
@@ -341,11 +354,32 @@ namespace Compiler
 //					case Token.Type.OP_REF:
 						res = new DotOper(scan.Read());
 						SymType t = node.getType();
-							((DotOper)res).SetParent(node);
+						((DotOper)res).SetParent(node);
+						try
+						{
+							CheckToken(scan.Peek(), Token.Type.IDENTIFICATOR);
+							Token id = scan.Read();
+							if (!(t is SymTypeStruct))
+							{
+								Symbol.Exception e = new Symbol.Exception("выражение слева от \"." + id.strval + "\" должно представлять структуру", node.pos, node.line);
+								e.Data["delayed"] = true;
+								throw e;
+							}
 
-						CheckToken(scan.Peek(), Token.Type.IDENTIFICATOR);
-						Token id = scan.Read();
+							if (!((SymTypeStruct)t).fields.ContainsIdentifier(id.strval))
+							{
+								Symbol.Exception e = new Symbol.Exception("\"" + id.strval + "\" не является членом \"" + node.getType().name + "\"", id.pos, id.line);
+								e.Data["delayed"] = true;
+								throw e;
+							}
+
 							((DotOper)res).SetChild(new IdentExpr(id, ((SymTypeStruct)t).fields.GetIdentifier(id.strval)));
+						}
+						catch (Symbol.Exception e)
+						{
+							ToHandlerException(e);
+							res = null;
+						}
 						break;
 
 					case Token.Type.LPAREN:
@@ -379,7 +413,10 @@ namespace Compiler
 						return res == null? node: res;
 				}
 
-				node = res;
+				if (res != null)
+				{
+					node = res;
+				}
 			}
 		}
 
@@ -726,7 +763,14 @@ namespace Compiler
 					if (scan.Peek().type == Token.Type.OP_ASSIGN && !is_function && !is_struct)
 					{
 						scan.Read();
-						var.SetInitValue(ParseInit());
+						try
+						{
+							var.SetInitValue(ParseInit());
+						}
+						catch (Compiler.Exception e)
+						{
+							ToHandlerException(e);
+						}
 					}
 
 					if (is_struct)

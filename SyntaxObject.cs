@@ -12,15 +12,6 @@ namespace Compiler
 		{
 			public Exception(string s) : base(s) { }
 		}
-
-		public enum Type 
-		{
-			OP_PREFIX, OP_POSTFIX, OP_INFIX, OP_ASSIGN, OP_CAST, OP_TERN, OP_SIZEOF, F_CALL, CONST, IDENTIFIER,
-
-			STMT_IF, STMT_BLOCK, STMT_FOR, STMT_WHILE, STMT_DO, STMT_SWITCH, STMT_CASE, STMT_RETURN, STMT_BREAK, STMT_CONTINUE
-		};
-
-		public Type type;
 		public int line = -1, pos = -1;
 		protected const int INDENT = 5;
 		protected const char SEP = '\"';
@@ -79,7 +70,44 @@ namespace Compiler
 
 	abstract class SynExpr: SynObj 
 	{
-		abstract public SymType getType();
+		public SymType type = null;
+		public SymType getType()
+		{
+			return type;
+		}
+
+		abstract public void Check();
+	}
+
+	abstract class SynOper : SynExpr
+	{
+	}
+
+	abstract class UnaryOper : SynOper
+	{
+		protected Token oper;
+		protected SynExpr operand;
+
+		public UnaryOper(Token op)
+		{
+			oper = op;
+			line = op.line;
+			pos = op.pos;
+		}
+
+		public void SetOperand(SynExpr operand)
+		{
+			this.operand = (SynExpr)CheckSynObj(operand);
+		}
+
+		public override void Check()
+		{
+			if (!Symantic.CheckUnaryOper(operand.type, oper.type))
+			{
+				Symbol.Exception e = new Symbol.Exception("отсутствует оператор \"" + oper.strval + "\" соответствующий данному операнду", oper.pos, oper.line);
+				e.Data["delayed"] = true;
+			}
+		} 
 	}
 
 	class ExprList : SynExpr
@@ -103,25 +131,19 @@ namespace Compiler
 			return s;
 		}
 
-		override public SymType getType()
+		public override void Check()
 		{
-			if (this.list.Count == 0)
-			{
-				return null;
-			}
-
-			return this.list[0].getType();
+			this.type = list[0].type;
 		}
 	}
 
-	class BinaryOper : SynExpr
+	class BinaryOper : SynOper
 	{
 		protected SynExpr lnode = null, rnode = null;
 		protected Token oper = null;
 
 		public BinaryOper(Token op)
 		{
-			type = Type.OP_INFIX;
 			oper = op;
 		}
 
@@ -146,75 +168,28 @@ namespace Compiler
 			return s;
 		}
 
-		public void Check()
+		public override void Check()
 		{
-			if (!lnode.getType().Compatible(rnode.getType()))
+			if(!Symantic.CheckBinaryOper(lnode.type, rnode.type, oper.type))
 			{
-				throw new Symbol.Exception("тип \"" + lnode.getType().name + "\" несовместим с типом \"" + rnode.getType().ToString() +"\".", rnode.line, rnode.pos);
-			}
-		}
-
-		override public SymType getType()
-		{
-			SymType lt = lnode.getType(), rt = rnode.getType();
-			if (rt == null || lt == null)
-			{
-				return null;
+				Symbol.Exception e = new Symbol.Exception("отсутствует оператор\"" + oper.strval + "\" соответствующий данным операторандам", oper.pos, oper.line);
+				e.Data["delayed"] = true;
+				throw e;
 			}
 
-			switch (oper.type)
-			{
- 				case Token.Type.OP_DIV:
-				case Token.Type.OP_PLUS:
-				case Token.Type.OP_SUB:
-					if (lt is SymTypeDouble || rt is SymTypeDouble)
-					{
-						return lt is SymTypeDouble ? lt : rt;
-					}
-
-					return lt;
-
-				case Token.Type.OP_MOD:
-
-				case Token.Type.OP_LESS:
-				case Token.Type.OP_LESS_OR_EQUAL:
-				case Token.Type.OP_MORE:
-				case Token.Type.OP_MORE_OR_EQUAL:
-				case Token.Type.OP_EQUAL:
-				case Token.Type.OP_NOT_EQUAL:
-				case Token.Type.OP_OR:
-				case Token.Type.OP_AND:
-
-				case Token.Type.OP_XOR:
-				case Token.Type.OP_BIT_OR:
-				case Token.Type.OP_BIT_AND:
-				case Token.Type.OP_L_SHIFT:
-				case Token.Type.OP_R_SHIFT:
-					if (lt is SymTypeInt && rt is SymTypeInt)
-					{
-						return lt;
-					}
-					return null;
-
-				default:
-					return null;
-			}
+			this.type = Symantic.GetTypeBinaryOper(lnode.type, rnode.type, oper.type);
 		}
 	}
 
 	class AssignOper : BinaryOper
 	{
-		public AssignOper(Token op)
-			: base(op)
-		{
-			type = Type.OP_ASSIGN;
-		}
+		public AssignOper(Token op) : base(op) { }
+
 	}
 
 	class ConstExpr : SynExpr
 	{
 		protected Token token;
-		public SymType type = null;
 
 		public ConstExpr(Token t, SymType type)
 		{
@@ -229,9 +204,9 @@ namespace Compiler
 			return getIndentString(level) + token.strval;
 		}
 
-		override public SymType getType()
+		public override void Check()
 		{
-			return type;
+			
 		}
 	}
 
@@ -244,7 +219,6 @@ namespace Compiler
 		{
 			line = t.line;
 			pos = t.pos;
-			type = Type.IDENTIFIER;
 			var = v;
 			token = CheckToken(t, Token.Type.IDENTIFICATOR, "требуется идентификатор");
 		}
@@ -254,33 +228,15 @@ namespace Compiler
 			return getIndentString(level) + token.strval;
 		}
 
-		override public SymType getType()
+		public override void Check()
 		{
-			return var.type;
-		}
-	}
-
-	abstract class UnaryOper : SynExpr
-	{
-		protected Token oper;
-		protected SynExpr operand;
-
-		public UnaryOper(Token op)
-		{
-			oper = op;
-			line = op.line;
-			pos = op.pos;
-		}
-
-		public void SetOperand(SynExpr operand)
-		{
-			this.operand = (SynExpr)CheckSynObj(operand);
+			this.type = var.type;
 		}
 	}
 
 	class PrefixOper : UnaryOper
 	{
-		public PrefixOper(Token op) : base(op) { type = Type.OP_PREFIX; }
+		public PrefixOper(Token op) : base(op) { }
 
 		public override string ToString(int level = 0)
 		{
@@ -289,16 +245,11 @@ namespace Compiler
 			s += operand.ToString(level + 1);
 			return s;
 		}
-
-		override public SymType getType()
-		{
-			return operand.getType();
-		}
 	}
 
 	class PostfixOper : UnaryOper
 	{
-		public PostfixOper(Token op) : base(op) { type = Type.OP_POSTFIX; }
+		public PostfixOper(Token op) : base(op) { }
 
 		public override string ToString(int level = 0)
 		{
@@ -306,11 +257,6 @@ namespace Compiler
 			s += SEP + "@" + oper.strval + SEP;
 			s += operand.ToString(level + 1);
 			return s;
-		}
-
-		override public SymType getType()
-		{
-			return operand.getType();
 		}
 	}
 
@@ -321,7 +267,6 @@ namespace Compiler
 
 		public CallOper(SynExpr opnd, int line, int pos)
 		{
-			type = Type.F_CALL;
 			operand = opnd;
 			this.line = line;
 			this.pos = pos;
@@ -345,10 +290,20 @@ namespace Compiler
 			return s;
 		}
 
-		override public SymType getType()
+		public override void Check()
 		{
-			return operand.getType();
-		}
+			if (!(operand.type is SymTypeFunc))
+			{
+				Symbol.Exception e = new Symbol.Exception(
+					(operand is IdentExpr? ((IdentExpr)operand).token.strval :"выражение") + " не является функцией",
+					operand.pos, operand.line);
+
+				e.Data["delayed"] = true;
+				throw e;
+			}
+
+			this.type = operand.type;
+		} 
 	}
 
 	class TerOper : SynExpr
@@ -357,7 +312,6 @@ namespace Compiler
 
 		public TerOper(SynExpr cond)
 		{
-			type = Type.OP_TERN;
 			this.cond = cond;
 			this.line = cond.line;
 			this.pos = cond.pos;
@@ -383,20 +337,21 @@ namespace Compiler
 			return s;
 		}
 
-		override public SymType getType()
+		public override void Check()
 		{
-			return lnode.getType();
+			throw new NotImplementedException();
+			/* нужно попытать прикаставать выозвращаемые результаты к одному типу*/
 		}
 	}
 
-	class RefOper : SynExpr
+	class DotOper : SynOper
 	{
 		protected Token oper;
-		protected SynExpr parent, child;
+		protected SynExpr parent;
+		protected IdentExpr child;
 
-		public RefOper(Token op)
+		public DotOper(Token op)
 		{
-			type = Type.OP_POSTFIX;
 			oper = op;
 		}
 
@@ -405,9 +360,9 @@ namespace Compiler
 			this.parent = (SynExpr)CheckSynObj(parent);
 		}
 
-		virtual public void SetChild(SynExpr child)
+		virtual public void SetChild(IdentExpr child)
 		{
-			this.child = (SynExpr)CheckSynObj(child, "требуется имя члена");
+			this.child = (IdentExpr)CheckSynObj(child, "требуется имя члена");
 			line = child.line;
 			pos = child.pos;
 		}
@@ -421,30 +376,58 @@ namespace Compiler
 			return s;
 		}
 
-		override public SymType getType()
+		public override void Check()
 		{
-			return child.getType();
+			if (!(parent.type is SymTypeStruct))
+			{
+				Symbol.Exception e = new Symbol.Exception("выражение слева от \"." + child.token.strval + "\" должно представлять структуру", parent.pos, parent.line);
+				e.Data["delayed"] = true;
+				throw e;
+			}
+
+			if (!(((SymTypeStruct)parent.type).fields.ContainsIdentifier(child.token.strval)))
+			{
+				Symbol.Exception e = new Symbol.Exception("\"" + child.token.strval + "\" не является членом \"" + 
+					((SymTypeStruct)parent.type).name + "\"", parent.pos, parent.line);
+				e.Data["delayed"] = true;
+				throw e;
+			}
+
+			this.type = child.type;
 		}
 	}
 
-	class DotOper : RefOper
+	class RefOper : DotOper
 	{
-		public DotOper(Token t) : base(t) { }
-		override public void SetParent(SynExpr parent)
+		public RefOper(Token t) : base(t) { }
+		/*override public void SetParent(SynExpr parent)
 		{
 			this.parent = parent;
-		}
-
-		public void SetChild(IdentExpr child)
-		{
-			line = child.line;
-			pos = child.pos;
-		}
+		}*/
 	}
 
 	class SqBrkOper : RefOper
 	{
+		public new SynExpr child;
+
 		public SqBrkOper(Token t) : base(t) { }
+
+		public void SetChild(SynExpr index)
+		{
+			child = index;
+		}
+
+		public override void Check()
+		{
+			if (!(parent.type is SymTypeArray))
+			{
+				Symbol.Exception e = new Symbol.Exception("отсутствует оператор \"[]\" соответствующий этим операндам", oper.pos, oper.line);
+				e.Data["delayed"] = true;
+				throw e;
+			}
+
+			this.type = ((SymTypeArray)parent.type).type;
+		}
 	}
 
 	class CastExpr : SynExpr
@@ -454,7 +437,6 @@ namespace Compiler
 
 		public CastExpr(SymType type_name, int line, int pos)
 		{
-			type = Type.OP_CAST;
 			this.type_name = type_name;
 		}
 
@@ -468,9 +450,9 @@ namespace Compiler
 			return getIndentString(level) + SEP + "CAST" + SEP + type_name.ToString() + operand.ToString(level + 1);
 		}
 
-		override public SymType getType()
+		public override void Check()
 		{
-			return type_name;
+			this.type = type_name;
 		}
 	}
 
@@ -479,7 +461,6 @@ namespace Compiler
 		new SymType operand;
 		public SizeofOper(Token op) : base(op) 
 		{
-			type = Type.OP_SIZEOF;
 			line = op.line;
 			pos = op.pos;
 		}
@@ -494,9 +475,9 @@ namespace Compiler
 			return getIndentString(level) + "SIZEOF" + operand.ToString();
 		}
 
-		override public SymType getType()
+		public override void Check()
 		{
-			return new SymTypeInt();
+			this.type = new SymTypeInt();
 		}
 	}
 
@@ -515,9 +496,9 @@ namespace Compiler
 			return val.ToString();
 		}
 
-		override public SymType getType()
+		public override void Check()
 		{
-			return val.getType();
+			this.type = val.type;
 		}
 	}
 
@@ -549,10 +530,7 @@ namespace Compiler
 			return s + " }";
 		}
 
-		override public SymType getType()
-		{
-			return null;
-		}
+		public override void Check() { }
 	}
 
 #endregion 
@@ -568,7 +546,6 @@ namespace Compiler
 
 		public StmtIF(SynExpr cond)
 		{
-			type = Type.STMT_IF;
 			this.cond = (SynExpr)CheckSynObj(cond);
 		}
 
@@ -598,7 +575,6 @@ namespace Compiler
 		ArrayList list = new ArrayList();
 		public StmtBLOCK(ArrayList stmts)
 		{
-			type = Type.STMT_BLOCK;
 			list = stmts;
 		}
 
@@ -621,10 +597,7 @@ namespace Compiler
 		List<SynObj> counter = new List<SynObj>();
 		SynObj block;
 
-		public StmtFOR()
-		{
-			type = Type.STMT_FOR;
-		}
+		public StmtFOR() { }
 
 		public void SetCounter(SynObj opnd)
 		{
@@ -667,7 +640,6 @@ namespace Compiler
 
 		public StmtWHILE(SynExpr cond)
 		{
-			type = Type.STMT_WHILE;
 			this.cond = (SynExpr)CheckSynObj(cond);
 		}
 
@@ -693,7 +665,6 @@ namespace Compiler
 
 		public StmtDO(SynObj block)
 		{
-			type = Type.STMT_DO;
 			this.block = CheckSynObj(block);
 		}
 
@@ -718,7 +689,6 @@ namespace Compiler
 	
 		public StmtRETURN(SynExpr val = null)
 		{
-			type = Type.STMT_RETURN;
 			this.val = val;
 		}
 
@@ -733,10 +703,7 @@ namespace Compiler
 
 	class StmtCONTINUE : SynStmt 
 	{
-		public StmtCONTINUE()
-		{
-			type = Type.STMT_CONTINUE;
-		}
+		public StmtCONTINUE() { }
 
 		public override string ToString(int level = 0)
 		{
@@ -746,10 +713,7 @@ namespace Compiler
 
 	class StmtBREAK : SynStmt 
 	{
-		public StmtBREAK()
-		{
-			type = Type.STMT_BREAK;
-		}
+		public StmtBREAK(){ }
 
 		public override string ToString(int level = 0)
 		{

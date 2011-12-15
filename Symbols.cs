@@ -486,13 +486,13 @@ namespace Compiler
 
 		public void SetInitValue(SynInit val)
 		{
-		/*	if (!val.getType().Equals(type))
+			if (!val.getType().Compatible(val.getType()))
 			{
 				Symbol.Exception e = new Symbol.Exception("значение типа \"" + val.getType().ToString() 
 					+ "\" нельзя использовать для инициализации сущности типа \"" + type.ToString() + "\"",
 					val.pos, val.line);
 				throw e;
-			}*/
+			}
 
 			value = val;
 		}
@@ -524,7 +524,6 @@ namespace Compiler
 		public SymSuperVar(Token t) : base(t) 
 		{
 			type = new SymSuperType();
-			name = NAME_IN_TABLE;
 		}
 
 		public SymSuperVar() : base() 
@@ -675,7 +674,8 @@ namespace Compiler
 
 		public override bool Compatible(SymType t)
 		{
-			return t is SymSuperType || t is SymTypeInt || t is SymTypeChar || t is SymTypeDouble;
+			return t is SymSuperType || t is SymTypeChar || t is SymTypePointer
+				|| t is SymTypeDouble || t is SymTypeEnum || t is SymTypeFunc || t is SymTypeInt;
 		}
 	}
 
@@ -686,7 +686,8 @@ namespace Compiler
 
 		public override bool Compatible(SymType t)
 		{
-			return t is SymTypeChar || t is SymTypeInt || t is SymSuperType || t is SymTypeFunc;
+			return t is SymSuperType || t is SymTypeChar || t is SymTypePointer
+				|| t is SymTypeDouble || t is SymTypeEnum || t is SymTypeFunc || t is SymTypeInt;
 		}
 	}
 
@@ -697,7 +698,8 @@ namespace Compiler
 
 		public override bool Compatible(SymType t)
 		{
-			return t is SymTypeInt || t is SymTypeChar || t is SymSuperType || t is SymTypeFunc;
+			return t is SymSuperType || t is SymTypeChar || t is SymTypePointer 
+				|| t is SymTypeDouble || t is SymTypeEnum || t is SymTypeFunc || t is SymTypeInt;
 		}
 	}
 
@@ -879,14 +881,9 @@ namespace Compiler
 			return s;
 		}
 
-		public override bool Equals(object obj)
-		{
-			throw new Exception();
-		}
-
 		public override bool Compatible(SymType t)
 		{
-			return this.Equals(t);
+			return t is SymSuperType || t is SymTypeInt || t is SymTypeChar || t is SymTypeDouble || t is SymTypeEnum;
 		}
 	}
 
@@ -966,7 +963,8 @@ namespace Compiler
 
 		public override bool Compatible(SymType t)
 		{
-			return t is SymSuperType || t is SymTypeInt || t is SymTypeChar || t is SymTypePointer || t is SymTypeArray || t is SymTypeFunc;
+			return t is SymSuperType || t is SymTypeInt || t is SymTypeChar || t is SymTypePointer 
+				|| t is SymTypeArray || t is SymTypeFunc || t is SymTypeEnum || t is SymTypeFunc;
 		}
 	}
 

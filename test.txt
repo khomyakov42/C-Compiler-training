@@ -1,28 +1,7 @@
-int *x1;
-int y1 = x1;
+struct { int y;} x;
 
-char *x2;
-int y2 = x2;
-
-struct {int x;} *x3;
-int y3 = x3;
-
-enum {A, B, C} *x4;
-int y4 = x4;
-
-int y5 = "blablabla";
-int y6 = 'a';
-
-enum{A,B,C} (*x7)();
-int y7 = x7;
-
-int y8 = 12312;
-
-int y9 = .001;
-
-int x10[10];
-int *y10 = x10;
-
-enum {A, B, C} x11[];
-int *y11 = x11;
+int z;
+int main(){
+	x.x;
+}
 
