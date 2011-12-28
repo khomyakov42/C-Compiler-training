@@ -14,13 +14,13 @@ namespace Compiler{
 			if (args.Count() == 0)
 			{
 				Console.WriteLine(header);
-				Compilation("../../test.txt");
+				Compilation("../../test.txt", "../../test.out.txt");
 			}
 			else
 				switch (args[0])
 				{
 					case "-c":
-						Compilation(args[1]);
+						//Compilation(args[1]);
 						break;
 					default:
 						Console.WriteLine(header);
@@ -28,13 +28,16 @@ namespace Compiler{
 				}
       }
 
-		static void Compilation(string filename){
-			FileStream file = new FileStream(@filename, FileMode.Open, FileAccess.Read);
+		static void Compilation(string input_path, string write_path){
+			FileStream file = new FileStream(@input_path, FileMode.Open, FileAccess.Read);
+			StreamWriter fout = new StreamWriter(@write_path, false);
 			Scaner scaner = new Scaner(file);
 			Parser parser = new Parser(scaner);
+			CodeGen generator = new CodeGen(fout, parser);
 			try
 			{
-				parser.Parse();
+				//parser.Parse();
+				generator.Generate();
 			}
 			catch (Exception e)
 			{

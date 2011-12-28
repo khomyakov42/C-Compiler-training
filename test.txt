@@ -1,7 +1,2 @@
-struct { int y;} x;
-
-int z;
-int main(){
-	x.x;
+int main(int x){
 }
-

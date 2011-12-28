@@ -13,10 +13,26 @@ namespace Compiler
 		{
 			public Exception(string s) : base(s) { }
 		}
+
 		public SymTable parent = null;
+		public List<SymTable> children = new List<SymTable>();
+		public int pos = 0, depth = 0;
+
+
 		public Dictionary<string, SymVar> vars = new Dictionary<string, SymVar>();
 		public Dictionary<string, SymType> types = new Dictionary<string, SymType>();
 		public Dictionary<string, SymVar> consts = new Dictionary<string, SymVar>();
+
+		public SymTable(int pos = 0, int depth = 0)
+		{
+			this.depth = depth;
+			this.pos = pos;
+		}
+
+		public string GetUniquePrefix()
+		{
+			return depth + "_" + pos;
+		}
 
 		public void AddConst(SymVar var)
 		{
@@ -53,7 +69,6 @@ namespace Compiler
 				e.Data["delayed"] = true;
 				throw e;
 			}
-
 			vars.Add(var.GetName(), var);//qutim
 		}
 
@@ -134,84 +149,9 @@ namespace Compiler
 
 	class StackTable
 	{
-		
-		class Node : SymTable
-		{
-			public class Iterator{
-				Node cur, root;
-
-				public Iterator(Node node)
-				{
-					root = node;
-					cur = root;
-				}
-
-				public bool MovePrev()
-				{
-					if (cur.parent == null)
-					{
-						return false;
-					}
-
-					cur = (Node)cur.parent;
-					return true;
-				}
-
-				public bool MoveNext()
-				{
-					if (cur.children.Count == 0)
-					{
-						if (cur.parent == null)
-						{
-							return false;
-						}
-
-						Node p = (Node)cur.parent;
-
-						while (p != null)
-						{
-							for (int i = 0; i < p.children.Count; i++)
-							{
-								if (p.children[i] == cur && i + 1 < p.children.Count)
-								{
-									cur = p.children[i + 1];
-									return true;
-								}
-							}
-							p = (Node)p.parent;
-						}
-						return false;
-					}
-					else
-					{
-						cur = cur.children[0];
-						return true;
-					}
-				}
-
-				public Node Current()
-				{
-					return cur;
-				}
-			}
-
-			public List<Node> children = new List<Node>();
-
-			new public string ToString()
-			{
-				string s = base.ToString();
-				foreach (var t in children)
-				{
-					s += t.ToString();
-				}
-
-				return s;
-			}
-		}
-
 		public class Iterator
 		{
-			Node cur, root;
+			SymTable cur, root;
 
 			public Iterator(StackTable tbs)
 			{
@@ -219,14 +159,20 @@ namespace Compiler
 				cur = root;
 			}
 
-			public bool MovePrev()
+			public Iterator(SymTable table)
+			{
+				root = table;
+				cur = table;
+			}
+
+			public bool MoveUp()
 			{
 				if (cur.parent == null)
 				{
 					return false;
 				}
 
-				cur = (Node)cur.parent;
+				cur = cur.parent;
 				return true;
 			}
 
@@ -239,7 +185,7 @@ namespace Compiler
 						return false;
 					}
 
-					Node p = (Node)cur.parent;
+					SymTable p = cur.parent;
 
 					while (p != null)
 					{
@@ -251,7 +197,7 @@ namespace Compiler
 								return true;
 							}
 						}
-						p = (Node)p.parent;
+						p = p.parent;
 					}
 					return false;
 				}
@@ -268,13 +214,11 @@ namespace Compiler
 			}
 		}
 
-		public int depth = 0;
-
-		Node root, current;
+		SymTable root, current;
 
 		public StackTable()
 		{
-			root = new Node();
+			root = new SymTable();
 			current = root;
 			root.AddType(new SymTypeChar());
 			root.AddType(new SymTypeDouble());
@@ -284,11 +228,15 @@ namespace Compiler
 
 		public void NewTable()
 		{
-			Node new_node = new Node();
+			SymTable new_node = new SymTable(current.children.Count, current.depth + 1);
 			new_node.parent = current;
 			current.children.Add(new_node);
 			current = new_node;
-			depth++;
+		}
+
+		public SymTable GetCurrent()
+		{
+			return this.current;
 		}
 
 		public void Up()
@@ -298,8 +246,7 @@ namespace Compiler
 				throw new Exception("Out of range");
 			}
 
-			current = (Node)current.parent;
-			depth--;
+			current = current.parent;
 		}
 
 		public void AddConst(SymVar c)
@@ -309,7 +256,7 @@ namespace Compiler
 
 		public bool ContainsConst(string name)
 		{
-			Node.Iterator itr = new Node.Iterator(current);
+			Iterator itr = new Iterator(current);
 			do
 			{
 				if (itr.Current().ContainsConst(name))
@@ -317,14 +264,14 @@ namespace Compiler
 					return true;
 				}
 			}
-			while (itr.MovePrev());
+			while (itr.MoveUp());
 
 			return false;
 		}
 
 		public SymVar GetConst(string name)
 		{
-			Node.Iterator itr = new Node.Iterator(current);
+			Iterator itr = new Iterator(current);
 			do
 			{
 				if (itr.Current().ContainsConst(name))
@@ -332,7 +279,7 @@ namespace Compiler
 					return itr.Current().GetConst(name);
 				}
 			}
-			while (itr.MovePrev());
+			while (itr.MoveUp());
 
 			return root.GetConst(name);
 		}
@@ -349,7 +296,7 @@ namespace Compiler
 
 		public SymType GetType(string name)
 		{
-			Node.Iterator itr = new Node.Iterator(current);
+			Iterator itr = new Iterator(current);
 			do 
 			{
 				if (itr.Current().ContainsType(name))
@@ -357,14 +304,14 @@ namespace Compiler
 					return itr.Current().GetType(name);
 				}
 			} 
-			while (itr.MovePrev());
+			while (itr.MoveUp());
 
-			return root.GetType(name);
+			return null;
 		}
 
 		public bool ContainsType(string name)
 		{
-			Node.Iterator itr = new Node.Iterator(current);
+			Iterator itr = new Iterator(current);
 			do
 			{
 				if (itr.Current().ContainsType(name))
@@ -372,14 +319,14 @@ namespace Compiler
 					return true;
 				}
 			}
-			while (itr.MovePrev());
+			while (itr.MoveUp());
 
 			return false;
 		}
 
 		public SymVar GetIdentifier(string name)
 		{
-			Node.Iterator itr = new Node.Iterator(current);
+			Iterator itr = new Iterator(current);
 			do
 			{
 				if (itr.Current().ContainsIdentifier(name))
@@ -387,13 +334,13 @@ namespace Compiler
 					return itr.Current().GetIdentifier(name);
 				}
 			}
-			while (itr.MovePrev());
-			return root.GetIdentifier(name);
+			while (itr.MoveUp());
+			return null;
 		}
 
 		public bool ContainsIdentifier(string name)
 		{
-			Node.Iterator itr = new Node.Iterator(current);
+			Iterator itr = new Iterator(current);
 
 			do
 			{
@@ -402,7 +349,7 @@ namespace Compiler
 					return true;
 				}
 			}
-			while (itr.MovePrev());
+			while (itr.MoveUp());
 
 			return false;
 		}
@@ -468,7 +415,7 @@ namespace Compiler
 	class SymVar : Symbol
 	{
 		public SymType type = null;
-		public SynExpr value = null;
+		public SynInit value = null;
 		public Token token;
 		public int line, pos;
 
@@ -497,11 +444,6 @@ namespace Compiler
 			value = val;
 		}
 
-		public void SetInitValue(SynInitList val)
-		{
-			value = val;
-		}
-
 		public override string ToString()
 		{
 			return this.name + "   " + this.type.ToString() + "   " + (this.value == null? "": "\n = " + this.value.ToString());
@@ -515,6 +457,11 @@ namespace Compiler
 			}
 			return base.Equals(obj);
 		}
+
+		virtual public string GenerateCode() 
+		{
+			return "";
+		}
 	}
 
 	class SymSuperVar : SymVar
@@ -524,6 +471,7 @@ namespace Compiler
 		public SymSuperVar(Token t) : base(t) 
 		{
 			type = new SymSuperType();
+			name = t.strval;
 		}
 
 		public SymSuperVar() : base() 
@@ -575,18 +523,39 @@ namespace Compiler
 
 			return base.Equals(obj);
 		}
+
+		public string GenerateCode()
+		{
+			return name + ":" + type.GenerateCode();
+		}
 	}
 
 	class SymVarLocal : SymVar
 	{
 		public SymVarLocal(Token t) : base(t) { }
 		public SymVarLocal() : base() { }
+
+		public string GenerateCode()
+		{
+			return "LOCAL " + name + ":" + type.GenerateCode();
+		}
 	}
 
 	class SymVarGlobal : SymVar
 	{
 		public SymVarGlobal(Token t) : base(t) { }
 		public SymVarGlobal() : base() { }
+
+		public void GenerateCode(CodeGen.Code code)
+		{
+			if (type is SymTypeFunc)
+			{
+				((SymTypeFunc)type).GenerateCode(code, this);
+				return;
+			}
+
+			code.AddLine(0, name + " " + type.GenerateCode() + " " + SynInit.GenerateBaseInitCode(type));
+		}
 	}
 
 #endregion
@@ -600,6 +569,10 @@ namespace Compiler
 		}
 
 		public abstract bool Compatible(SymType t);
+
+		public abstract int GetSize();
+
+		public abstract string GenerateCode();
 	}
 
 	class SymSuperType : SymType
@@ -623,6 +596,16 @@ namespace Compiler
 		public override bool Compatible(SymType t)
 		{
 			return true;
+		}
+
+		override public int GetSize()
+		{
+			return 0;
+		}
+
+		public override string GenerateCode()
+		{
+			throw new NotImplementedException();
 		}
 	}
 
@@ -665,6 +648,16 @@ namespace Compiler
 		{
 			return true;
 		}
+
+		public override int GetSize()
+		{
+			return 0;
+		}
+
+		public override string GenerateCode()
+		{
+			throw new NotImplementedException();
+		}
 	}
 
 	class SymTypeDouble : SymTypeScalar
@@ -676,6 +669,16 @@ namespace Compiler
 		{
 			return t is SymSuperType || t is SymTypeChar || t is SymTypePointer
 				|| t is SymTypeDouble || t is SymTypeEnum || t is SymTypeFunc || t is SymTypeInt;
+		}
+
+		public override int GetSize()
+		{
+			return 8;
+		}
+
+		public override string GenerateCode()
+		{
+			return "QWORD";
 		}
 	}
 
@@ -689,6 +692,16 @@ namespace Compiler
 			return t is SymSuperType || t is SymTypeChar || t is SymTypePointer
 				|| t is SymTypeDouble || t is SymTypeEnum || t is SymTypeFunc || t is SymTypeInt;
 		}
+
+		public override int GetSize()
+		{
+			return 1;
+		}
+
+		public override string GenerateCode()
+		{
+			return "BYTE";
+		}
 	}
 
 	class SymTypeInt : SymTypeScalar
@@ -700,6 +713,16 @@ namespace Compiler
 		{
 			return t is SymSuperType || t is SymTypeChar || t is SymTypePointer 
 				|| t is SymTypeDouble || t is SymTypeEnum || t is SymTypeFunc || t is SymTypeInt;
+		}
+
+		public override int GetSize()
+		{
+			return 4;
+		}
+
+		public override string GenerateCode()
+		{
+			return "DWORD";
 		}
 	}
 
@@ -727,6 +750,11 @@ namespace Compiler
 
 			return (SymTypeScalar)itr;
 		}
+
+		public override string GenerateCode()
+		{
+			throw new NotImplementedException();
+		}
 	}
 
 	class SymTypeArray : SymRefType
@@ -751,12 +779,22 @@ namespace Compiler
 		{
 			return t is SymSuperType || t is SymTypeInt || t is SymTypeChar;
 		}
+
+		public override int GetSize()
+		{
+			return 4;
+		}
+
+		public override string GenerateCode()
+		{
+			throw new NotImplementedException();
+		}
 	}
 
 	class SymTypeFunc : SymRefType
 	{
 		public List<SymVarParam> args = new List<SymVarParam>();
-		public SynStmt body = null;
+		public StmtBLOCK body = null;
 
 		public SymTypeFunc(SymType t = null)
 		{
@@ -784,7 +822,7 @@ namespace Compiler
 			this.args.Add(p);
 		}
 
-		public void SetBody(SynStmt _body)
+		public void SetBody(StmtBLOCK _body)
 		{
 			body = _body;
 
@@ -859,6 +897,44 @@ namespace Compiler
 		{
 			return t is SymSuperType || this.Equals(t);
 		}
+
+		public override int GetSize()
+		{
+			return 4;
+		}
+
+		public override string GenerateCode()
+		{
+			return "";
+		}
+
+		public void GenerateCode(CodeGen.Code code, SymVar var)
+		{
+			string s = var.name + " PROC";
+			for (int i = 0; i < args.Count; i++)
+			{
+				args[i].name += "@" + var.name;
+				s += (i == 0? " ": ", ") + args[i].GenerateCode();
+			}
+			code.AddLine(3, s);
+
+			StackTable.Iterator titr = new StackTable.Iterator(body.table);
+			do
+			{
+				string pr = "@" + titr.Current().depth + "_" + titr.Current().pos;
+				foreach (var lv in titr.Current().vars.Values)
+				{
+					if (!(lv is SymVarParam))
+					{
+						lv.name += pr;
+						code.AddLine(6, lv.GenerateCode());
+					}
+				}
+			} while (titr.MoveNext());
+
+			code.AddLine(6, "RET");
+			code.AddLine(3, var.name + " ENDP");
+		}
 	}
 
 	class SymTypeEnum : SymType
@@ -885,6 +961,16 @@ namespace Compiler
 		{
 			return t is SymSuperType || t is SymTypeInt || t is SymTypeChar || t is SymTypeDouble || t is SymTypeEnum;
 		}
+
+		public override int GetSize()
+		{
+			return 4;
+		}
+
+		public override string GenerateCode()
+		{
+			throw new NotImplementedException();
+		}
 	}
 
 	class SymTypeStruct : SymType
@@ -909,6 +995,22 @@ namespace Compiler
 		public override bool Compatible(SymType t)
 		{
 			return this.Equals(t);
+		}
+
+		public override int GetSize()
+		{
+			int size = 0;
+			foreach (var field in fields.vars)
+			{
+				size += field.Value.type.GetSize();
+			}
+
+			return size;
+		}
+
+		public override string GenerateCode()
+		{
+			throw new NotImplementedException();
 		}
 	}
 
@@ -947,6 +1049,16 @@ namespace Compiler
 		{
 			return this.type.Compatible(t);
 		}
+
+		public override int GetSize()
+		{
+			return type.GetSize();
+		}
+
+		public override string GenerateCode()
+		{
+			throw new NotImplementedException();
+		}
 	}
 
 	class SymTypePointer : SymRefType
@@ -965,6 +1077,16 @@ namespace Compiler
 		{
 			return t is SymSuperType || t is SymTypeInt || t is SymTypeChar || t is SymTypePointer 
 				|| t is SymTypeArray || t is SymTypeFunc || t is SymTypeEnum || t is SymTypeFunc;
+		}
+
+		public override int GetSize()
+		{
+			return type.GetSize();
+		}
+
+		public override string GenerateCode()
+		{
+			return "DWORD";
 		}
 	}
 

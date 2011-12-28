@@ -70,7 +70,8 @@ namespace Compiler
 
 	abstract class SynExpr: SynObj 
 	{
-		public SymType type = null;
+		public SymType type = new SymSuperType();
+		public bool lvalue = false;
 		public SymType getType()
 		{
 			return type;
@@ -98,6 +99,7 @@ namespace Compiler
 		public void SetOperand(SynExpr operand)
 		{
 			this.operand = (SynExpr)CheckSynObj(operand);
+			Check();
 		}
 
 		public override void Check()
@@ -106,6 +108,13 @@ namespace Compiler
 			{
 				Symbol.Exception e = new Symbol.Exception("отсутствует оператор \"" + oper.strval + "\" соответствующий данному операнду", oper.pos, oper.line);
 				e.Data["delayed"] = true;
+			}
+
+			if ((oper.type == Token.Type.OP_INC || oper.type == Token.Type.OP_DEC || oper.type == Token.Type.OP_BIT_AND) && !operand.lvalue)
+			{
+				Symbol.Exception e = new Symbol.Exception("для \"" + oper.strval +"\" требуется левостороннее значение", operand.pos, operand.line);
+				e.Data["delayed"] = true;
+				throw e;
 			}
 		} 
 	}
@@ -116,6 +125,7 @@ namespace Compiler
 		public ExprList(List<SynExpr> exprs)
 		{
 			list = exprs;
+			Check();
 		}
 
 		override public string ToString(int level=0)
@@ -133,7 +143,10 @@ namespace Compiler
 
 		public override void Check()
 		{
-			this.type = list[0].type;
+			if (list.Count > 0)
+			{
+				this.type = list[0].type;
+			}
 		}
 	}
 
@@ -157,6 +170,7 @@ namespace Compiler
 		public void SetRightOperand(SynExpr r)
 		{
 			rnode = (SynExpr)CheckSynObj(r);
+			Check();
 		}
 
 		public override string ToString(int level = 0)
@@ -185,18 +199,39 @@ namespace Compiler
 	{
 		public AssignOper(Token op) : base(op) { }
 
+		public override void Check()
+		{
+			if(!Symantic.CheckBinaryOper(lnode.type, rnode.type, oper.type))
+			{
+				Symbol.Exception e = new Symbol.Exception("отсутствует оператор\"" + oper.strval + "\" соответствующий данным операторандам", oper.pos, oper.line);
+				e.Data["delayed"] = true;
+				throw e;
+			}
+			
+			if (!lnode.lvalue)
+			{
+				Symbol.Exception e = new Symbol.Exception("выражение должно быть допустимым для изменения левосторонним значением", lnode.pos, lnode.line);
+				e.Data["delayed"] = true;
+				throw e;
+			}
+
+			this.type = Symantic.GetTypeBinaryOper(lnode.type, rnode.type, oper.type);
+		}
+		
 	}
 
 	class ConstExpr : SynExpr
 	{
 		protected Token token;
+		public string value = "";
 
 		public ConstExpr(Token t, SymType type)
 		{
 			token = t;
 			line = t.line;
 			pos = t.pos;
-			this.type = type;
+			value = t.strval;
+			Check();
 		}
 
 		public override string ToString(int level = 0)
@@ -206,7 +241,7 @@ namespace Compiler
 
 		public override void Check()
 		{
-			
+			this.type = type;
 		}
 	}
 
@@ -215,12 +250,22 @@ namespace Compiler
 		public Token token;
 		public SymVar var = null;
 
+		public IdentExpr(Token t)
+		{
+			lvalue = true;
+			line = t.line;
+			pos = t.pos;
+			token = CheckToken(t, Token.Type.IDENTIFICATOR, "требуется идентификатор");
+		}
+
 		public IdentExpr(Token t, SymVar v)
 		{
+			lvalue = true;
 			line = t.line;
 			pos = t.pos;
 			var = v;
-			token = CheckToken(t, Token.Type.IDENTIFICATOR, "требуется идентификатор");
+			token = t;
+			Check();
 		}
 
 		public override string ToString(int level = 0)
@@ -232,11 +277,18 @@ namespace Compiler
 		{
 			this.type = var.type;
 		}
+
 	}
 
 	class PrefixOper : UnaryOper
 	{
-		public PrefixOper(Token op) : base(op) { }
+		public PrefixOper(Token op) : base(op) 
+		{
+			if (op.type == Token.Type.OP_STAR)
+			{
+				lvalue = true;
+			}
+		}
 
 		public override string ToString(int level = 0)
 		{
@@ -302,8 +354,14 @@ namespace Compiler
 				throw e;
 			}
 
+			foreach (var a in args)
+			{
+
+			}
+
 			this.type = operand.type;
-		} 
+		}
+
 	}
 
 	class TerOper : SynExpr
@@ -353,6 +411,7 @@ namespace Compiler
 		public DotOper(Token op)
 		{
 			oper = op;
+			lvalue = true;
 		}
 
 		virtual public void SetParent(SynExpr parent)
@@ -399,18 +458,40 @@ namespace Compiler
 
 	class RefOper : DotOper
 	{
-		public RefOper(Token t) : base(t) { }
-		/*override public void SetParent(SynExpr parent)
+		public RefOper(Token t) : base(t) 
 		{
-			this.parent = parent;
-		}*/
+			lvalue = true;
+		}
+
+		public override void Check()
+		{
+			if (!(parent.type is SymTypePointer && ((SymTypePointer)parent.type).type is SymTypeStruct))
+			{
+				Symbol.Exception e = new Symbol.Exception("выражение слева от \"->" + child.token.strval + "\" должно указывать на структуру", parent.pos, parent.line);
+				e.Data["delayed"] = true;
+				throw e;
+			}
+
+			if (! ((SymTypeStruct)((SymTypePointer)parent.type).type).fields.ContainsIdentifier(child.token.strval))
+			{
+				Symbol.Exception e = new Symbol.Exception("\"" + child.token.strval + "\" не является членом \"" +
+					((SymTypeStruct)((SymTypePointer)parent.type).type).name + "\"", parent.pos, parent.line);
+				e.Data["delayed"] = true;
+				throw e;
+			}
+
+			this.type = child.type;
+		}
 	}
 
 	class SqBrkOper : RefOper
 	{
 		public new SynExpr child;
 
-		public SqBrkOper(Token t) : base(t) { }
+		public SqBrkOper(Token t) : base(t) 
+		{
+			lvalue = true;
+		}
 
 		public void SetChild(SynExpr index)
 		{
@@ -419,14 +500,23 @@ namespace Compiler
 
 		public override void Check()
 		{
-			if (!(parent.type is SymTypeArray))
+			if (!(parent.type is SymTypeArray || parent.type is SymTypePointer))
 			{
 				Symbol.Exception e = new Symbol.Exception("отсутствует оператор \"[]\" соответствующий этим операндам", oper.pos, oper.line);
 				e.Data["delayed"] = true;
 				throw e;
 			}
 
-			this.type = ((SymTypeArray)parent.type).type;
+			this.type = ((SymRefType)parent.type).type;
+		}
+
+		public override string ToString(int level = 0)
+		{
+			string s = getIndentString(level);
+			s += oper.strval;
+			s += parent.ToString(level + 1);
+			s += child.ToString(level + 1);
+			return s;
 		}
 	}
 
@@ -443,6 +533,7 @@ namespace Compiler
 		public void SetOperand(SynExpr operand)
 		{
 			this.operand = CheckSynObj(operand);
+			Check();
 		}
 
 		public override string ToString(int level = 0)
@@ -483,13 +574,16 @@ namespace Compiler
 
 	class SynInit : SynExpr
 	{
-		SynExpr val;
+		SynExpr val = null;
+
 		public SynInit(SynExpr v)
 		{
 			this.val = v;
 			line = v.line;
 			pos = v.pos;
 		}
+
+		public SynInit() { }
 
 		public override string ToString(int level = 0)
 		{
@@ -499,6 +593,20 @@ namespace Compiler
 		public override void Check()
 		{
 			this.type = val.type;
+		}
+
+		public static string GenerateBaseInitCode(SymType t)
+		{
+			if (t is SymTypeScalar || t is SymTypePointer)
+			{
+				return "?";
+			}
+			else if (t is SymTypeFunc)
+			{
+				return "";
+			}
+
+			return "ERRRRRR";
 		}
 	}
 
@@ -572,10 +680,13 @@ namespace Compiler
 
 	class StmtBLOCK : SynStmt
 	{
-		ArrayList list = new ArrayList();
-		public StmtBLOCK(ArrayList stmts)
+		List<SynObj> list = new List<SynObj>();
+		public SymTable table = null;
+
+		public StmtBLOCK(List<SynObj> stmts, SymTable tb)
 		{
 			list = stmts;
+			table = tb;
 		}
 
 		public override string ToString(int level = 0)
@@ -698,7 +809,7 @@ namespace Compiler
 			s += "RETURN";
 			s += val == null? "": val.ToString(level + 1);
 			return s;
-		} 
+		}
 	}
 
 	class StmtCONTINUE : SynStmt 

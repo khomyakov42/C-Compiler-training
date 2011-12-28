@@ -1,0 +1,9 @@
+struct { int x;} s;
+
+int i;
+int main(){
+	s.x;
+	s.y;
+	i.x;
+}
+

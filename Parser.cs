@@ -271,7 +271,7 @@ namespace Compiler
 
 				try
 				{
-					//((BinaryOper)root).Check();
+					((BinaryOper)root).Check();
 				}
 				catch (Symbol.Exception e)
 				{
@@ -284,22 +284,27 @@ namespace Compiler
 
 		private SynExpr ParsePrimaryExpr()
 		{
+			SynExpr res = null;
 			switch (scan.Peek().type)
 			{
 				case Token.Type.CONST_CHAR:
-					return new ConstExpr(scan.Read(), new SymTypeChar());
+					res = new ConstExpr(scan.Read(), new SymTypeChar());
+					break;
 
 				case Token.Type.CONST_DOUBLE:
-					return new ConstExpr(scan.Read(), new SymTypeDouble());
+					res = new ConstExpr(scan.Read(), new SymTypeDouble());
+					break;
 
 				case Token.Type.CONST_INT:
-					return new ConstExpr(scan.Read(), new SymTypeInt());
+					res = new ConstExpr(scan.Read(), new SymTypeInt());
+					break;
 
 				case Token.Type.CONST_STRING:
-					return new ConstExpr(scan.Read(), new SymTypePointer(new SymTypeChar()));
+					res = new ConstExpr(scan.Read(), new SymTypePointer(new SymTypeChar()));
+					break;
 
 				case Token.Type.IDENTIFICATOR:
-					if (this.parse_const_expr)
+			/*		if (this.parse_const_expr)
 					{
 							if (!tables.ContainsConst(scan.Peek().strval))
 							{
@@ -309,32 +314,40 @@ namespace Compiler
 								}
 								tables.AddVar(new SymSuperVar(scan.Peek()));
 								this.logger.Add(new Symbol.Exception(scan.Peek().strval + ": необъявленный идентификатор", scan.GetLine(), scan.GetPos()));
-								return new ConstExpr(scan.Peek(), tables.GetIdentifier(scan.Read().strval).type);
+								res = new ConstExpr(scan.Peek(), tables.GetIdentifier(scan.Read().strval).type);
+								break;
 							}
 							Token c = scan.Read();
-							return new ConstExpr(c, tables.GetConst(c.strval).type);
+							res = new ConstExpr(c, tables.GetConst(c.strval).type);
+							break;
 					}
-
+					*/
 					if (!tables.ContainsIdentifier(scan.Peek().strval))
 					{
 						tables.AddVar(new SymSuperVar(scan.Peek()));
 						this.logger.Add(new Symbol.Exception(scan.Peek().strval + ": необъявленный идентификатор", scan.GetLine(), scan.GetPos()));
-						return new IdentExpr(scan.Peek(), tables.GetIdentifier(scan.Read().strval));
+						res = new IdentExpr(scan.Peek(), tables.GetIdentifier(scan.Read().strval));
+						break;
 					}
 
 					Token id = scan.Read();
-					return new IdentExpr(id, tables.GetIdentifier(id.strval));
+					res = new IdentExpr(id, tables.GetIdentifier(id.strval));
+					break;
 
 				case Token.Type.LPAREN:
 					scan.Read();
-					SynExpr res = ParseExpression();
+					 res = ParseExpression();
 
 					CheckToken(scan.Peek(), Token.Type.RPAREN, true);
-					return res;
-
-				default:
-					return null;
+					break;
 			}
+
+			if (res != null)
+			{
+				res.Check();
+			}
+
+			return res;
 		}
 
 		private SynExpr ParsePostfixExpr(SynExpr expr_node = null)
@@ -351,34 +364,41 @@ namespace Compiler
 						break;
 
 					case Token.Type.OP_DOT:
-//					case Token.Type.OP_REF:
-						res = new DotOper(scan.Read());
+					case Token.Type.OP_REF:
+						if (scan.Peek().type == Token.Type.OP_DOT)
+						{
+							res = new DotOper(scan.Read());
+						}
+						else
+						{
+							res = new RefOper(scan.Read());
+						}
+
 						SymType t = node.getType();
 						((DotOper)res).SetParent(node);
+						Token id = null;
 						try
 						{
 							CheckToken(scan.Peek(), Token.Type.IDENTIFICATOR);
-							Token id = scan.Read();
-							if (!(t is SymTypeStruct))
+							id = scan.Read();
+							IdentExpr ident = null;
+
+							if (t is SymTypeStruct && ((SymTypeStruct)t).fields.ContainsIdentifier(id.strval))
 							{
-								Symbol.Exception e = new Symbol.Exception("выражение слева от \"." + id.strval + "\" должно представлять структуру", node.pos, node.line);
-								e.Data["delayed"] = true;
-								throw e;
+								ident = new IdentExpr(id, ((SymTypeStruct)t).fields.GetIdentifier(id.strval));
+							}
+							else
+							{
+								ident = new IdentExpr(id);
 							}
 
-							if (!((SymTypeStruct)t).fields.ContainsIdentifier(id.strval))
-							{
-								Symbol.Exception e = new Symbol.Exception("\"" + id.strval + "\" не является членом \"" + node.getType().name + "\"", id.pos, id.line);
-								e.Data["delayed"] = true;
-								throw e;
-							}
-
-							((DotOper)res).SetChild(new IdentExpr(id, ((SymTypeStruct)t).fields.GetIdentifier(id.strval)));
+							((DotOper)res).SetChild(ident);
+							((DotOper)res).Check();
 						}
 						catch (Symbol.Exception e)
 						{
+							((DotOper)res).SetChild(new IdentExpr(id == null? scan.Peek(): id, new SymSuperVar()));
 							ToHandlerException(e);
-							res = null;
 						}
 						break;
 
@@ -397,6 +417,15 @@ namespace Compiler
 						{
 							((CallOper)res).AddArgument(arg);
 						}
+						try
+						{
+							res.Check();
+						}
+						catch (Symbol.Exception e)
+						{
+							ToHandlerException(e);
+						}
+
 						CheckToken(scan.Peek(), Token.Type.RPAREN, true);
 
 						break;
@@ -405,6 +434,14 @@ namespace Compiler
 						res = new SqBrkOper(scan.Read());
 						((SqBrkOper)res).SetParent(node);
 						((SqBrkOper)res).SetChild(ParseExpression());
+						try
+						{
+							res.Check();
+						}
+						catch(Symbol.Exception e)
+						{
+							ToHandlerException(e);
+						}
 
 						CheckToken(scan.Peek(), Token.Type.RBRACKET, true);
 						break;
@@ -430,6 +467,7 @@ namespace Compiler
 				case Token.Type.OP_DEC:
 					node = new PrefixOper(scan.Read());
 					node.SetOperand(ParseUnaryExpr(false));
+
 					return node;
 
 				case Token.Type.OP_BIT_AND:
@@ -661,7 +699,7 @@ namespace Compiler
 			}
 
 			scan.Read();
-			ArrayList stmts = new ArrayList();
+			List<SynObj> stmts = new List<SynObj>();
 			bool begin_block = true;
 			tables.NewTable();
 
@@ -711,8 +749,9 @@ namespace Compiler
 				}
 			}
 			CheckToken(scan.Peek(), Token.Type.RBRACE, true);
+			StmtBLOCK res = new StmtBLOCK(stmts, tables.GetCurrent());
 			tables.Up();
-			return new StmtBLOCK(stmts);
+			return res;
 		}
 
 		#endregion
@@ -885,7 +924,15 @@ namespace Compiler
 						}
 						
 						type.AddEnumerator(var);
-						tables.AddConst(var);
+						try
+						{
+							tables.AddConst(var);
+						}
+						catch (Symbol.Exception e)
+						{
+							ToHandlerException(e);
+						}
+
 						if (scan.Peek().type == Token.Type.COMMA)
 						{
 							scan.Read();
