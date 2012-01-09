@@ -5,6 +5,11 @@ using System.Text;
 using System.IO;
 
 namespace Compiler{
+	class FatalException : Exception
+	{
+		public FatalException() : base("FATAL ERROR") { }
+	}
+
 	class Program
    {
 		const string header = "Compiler by Homyakov Sergey, FEFU School of Natural Sciences, b8303a, 2011";

@@ -30,9 +30,9 @@ namespace Compiler
 		};
 
 		public static readonly Hashtable terms, type_to_terms;
-		public int pos, line;				
-		public Type type;						
-		public string strval;				
+		public int pos = -1, line = -1;				
+		public Type type = Type.NONE;						
+		public string strval = "";				
 													
 		static Token()
 		{
@@ -58,7 +58,7 @@ namespace Compiler
 			terms["!"] = Type.OP_NOT;
 			terms["!="] = Type.OP_NOT_EQUAL;
 			terms["="] = Type.OP_ASSIGN;
-			terms["=="] = Type.OP_NOT_EQUAL;
+			terms["=="] = Type.OP_EQUAL;
 			terms["^"] = Type.OP_XOR;
 			terms["^="] = Type.OP_XOR_ASSIGN;
 			terms["+"] = Type.OP_PLUS;
@@ -111,6 +111,21 @@ namespace Compiler
 				type_to_terms[de.Value] = de.Key;
 			}
 			type_to_terms[Type.IDENTIFICATOR] = "идентификатор";
+		}
+
+		public Token(Type _type, string _strval = null)
+		{
+			if (type_to_terms.ContainsKey(_type) && _strval == null)
+			{
+				strval = (string)type_to_terms[_type];
+			}
+
+			if (_strval != null)
+			{
+				strval = _strval;
+			}
+
+			type = _type;
 		}
 
 		public Token(int pos, int line, Type type, string val)
@@ -585,7 +600,7 @@ namespace Compiler
 			{
 				throw_exception("отсутствует \"\"\"");
 			}
-
+			
 			buf.Read();
 		}
 

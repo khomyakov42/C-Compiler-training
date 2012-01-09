@@ -78,9 +78,25 @@ namespace Compiler
 		}
 
 		abstract public void Check();
+
+		abstract public void GenerateCode(CodeGen.Code code, bool address=false);
+
+		public static void GeneratePopResult(CodeGen.Code code)
+		{
+			code.AddComand("pop", "ebx");
+			code.AddComand("pop", "eax"); 
+		}
 	}
 
-	abstract class SynOper : SynExpr
+	abstract class SynConstExpr : SynExpr
+	{
+		virtual public int ComputeConstIntValue()
+		{
+			throw new FatalException();
+		}
+	}
+
+	abstract class SynOper : SynConstExpr
 	{
 	}
 
@@ -119,7 +135,7 @@ namespace Compiler
 		} 
 	}
 
-	class ExprList : SynExpr
+	class ExprList : SynConstExpr
 	{
 		public List<SynExpr> list;
 		public ExprList(List<SynExpr> exprs)
@@ -148,6 +164,25 @@ namespace Compiler
 				this.type = list[0].type;
 			}
 		}
+
+		public override void GenerateCode(CodeGen.Code code, bool address=false)
+		{
+			foreach (SynExpr expr in list)
+			{
+				expr.GenerateCode(code, address);
+				code.AddComand("pop");
+			}
+		}
+
+		public override int ComputeConstIntValue()
+		{
+			if (list.Count != 1 || !(list[0] is SynConstExpr))
+			{
+				throw new FatalException();
+			}
+
+			return ((SynConstExpr)list[0]).ComputeConstIntValue();
+		}
 	}
 
 	class BinaryOper : SynOper
@@ -159,6 +194,8 @@ namespace Compiler
 		{
 			oper = op;
 		}
+
+		public BinaryOper() { }
 
 		public void SetLeftOperand(SynExpr l)
 		{
@@ -193,11 +230,83 @@ namespace Compiler
 
 			this.type = Symantic.GetTypeBinaryOper(lnode.type, rnode.type, oper.type);
 		}
+
+		public override void GenerateCode(CodeGen.Code code, bool address=false)
+		{
+			string comand = "";
+			switch (this.oper.type)
+			{
+				case Token.Type.OP_PLUS:
+					comand = "add";
+					break;
+				case Token.Type.OP_SUB:
+					comand = "sub";
+					break;
+				default:
+					throw new NotImplementedException();
+			}
+
+			lnode.GenerateCode(code, address);
+			rnode.GenerateCode(code, address);
+			SynExpr.GeneratePopResult(code);
+
+			code.AddComand(comand, "eax", "ebx");
+			code.AddComand("push", "eax");
+		}
+
+		public override int ComputeConstIntValue()
+		{
+			if (!(lnode is SynConstExpr && rnode is SynConstExpr))
+			{
+				throw new FatalException();
+			}
+
+			int a = ((SynConstExpr)lnode).ComputeConstIntValue(), b = ((SynConstExpr)rnode).ComputeConstIntValue();
+
+			switch (oper.type)
+			{
+				case Token.Type.OP_PLUS:
+					return a + b;
+				case Token.Type.OP_SUB:
+					return a - b;
+				case Token.Type.OP_STAR:
+					return a * b;
+				case Token.Type.OP_MOD:
+					return a % b;
+				case Token.Type.OP_DIV:
+					return a / b;
+				case Token.Type.OP_AND:
+					return a == 0 || b == 0 ? 0 : 1;
+				case Token.Type.OP_OR:
+					return a == 0 && b == 0 ? 0 : 1;
+				case Token.Type.OP_EQUAL:
+					return a != b? 0 : 1;
+				case Token.Type.OP_NOT_EQUAL:
+					return a == b ? 0 : 1;
+				case Token.Type.OP_L_SHIFT:
+					return a << b;
+				case Token.Type.OP_R_SHIFT:
+					return a >> b;
+				case Token.Type.OP_BIT_AND:
+					return a & b;
+				case Token.Type.OP_BIT_OR:
+					return a | b;
+				case Token.Type.OP_XOR:
+					return a ^ b;
+				default:
+					throw new FatalException();
+			}
+		}
 	}
 
 	class AssignOper : BinaryOper
 	{
-		public AssignOper(Token op) : base(op) { }
+		public AssignOper(Token op) : base(op) { lvalue = true; }
+		public AssignOper() : base() 
+		{
+			oper = new Token(Token.Type.OP_ASSIGN);
+			lvalue = true;
+		}
 
 		public override void Check()
 		{
@@ -217,13 +326,70 @@ namespace Compiler
 
 			this.type = Symantic.GetTypeBinaryOper(lnode.type, rnode.type, oper.type);
 		}
-		
+
+		public override void GenerateCode(CodeGen.Code code, bool address=false)
+		{
+			Token.Type t = Token.Type.NONE;
+			switch (oper.type)
+			{
+				case Token.Type.OP_PLUS_ASSIGN:
+					t = Token.Type.OP_PLUS;
+					break;
+				case Token.Type.OP_SUB_ASSIGN:
+					t = Token.Type.OP_SUB;
+					break;
+				case Token.Type.OP_MUL_ASSIGN:
+					t = Token.Type.OP_STAR;
+					break;
+				case Token.Type.OP_MOD_ASSIGN:
+					t = Token.Type.OP_MOD;
+					break;
+				case Token.Type.OP_DIV_ASSIGN:
+					t = Token.Type.OP_DIV;
+					break;
+				case Token.Type.OP_BIT_AND_ASSIGN:
+					t = Token.Type.OP_BIT_AND;
+					break;
+				case Token.Type.OP_BIT_OR_ASSIGN:
+					t = Token.Type.OP_BIT_OR;
+					break;
+				case Token.Type.OP_XOR_ASSIGN:
+					t = Token.Type.OP_XOR;
+					break;
+				case Token.Type.OP_L_SHIFT_ASSIGN:
+					t = Token.Type.OP_L_SHIFT;
+					break;
+				case Token.Type.OP_R_SHIFT_ASSIGN:
+					t = Token.Type.OP_R_SHIFT;
+					break;
+			}
+
+			if (t != Token.Type.NONE)
+			{
+				BinaryOper binop = new BinaryOper(new Token(t));
+				binop.SetLeftOperand(lnode);
+				binop.SetRightOperand(rnode);
+				rnode = binop;
+			}
+
+			lnode.GenerateCode(code, true);
+			rnode.GenerateCode(code, false);
+			SynExpr.GeneratePopResult(code);
+			code.AddComand("mov", "[eax]", "ebx");
+		}
 	}
 
-	class ConstExpr : SynExpr
+	class ConstExpr : SynConstExpr
 	{
 		protected Token token;
 		public string value = "";
+
+		public ConstExpr(SymType type, string val)
+		{
+			value = val;
+			this.type = type;
+			token = new Token();
+		}
 
 		public ConstExpr(Token t, SymType type)
 		{
@@ -231,21 +397,49 @@ namespace Compiler
 			line = t.line;
 			pos = t.pos;
 			value = t.strval;
-			Check();
+			this.type = type;
 		}
 
 		public override string ToString(int level = 0)
 		{
-			return getIndentString(level) + token.strval;
+			return getIndentString(level) + value;
 		}
 
 		public override void Check()
 		{
-			this.type = type;
+		}
+
+		public override void GenerateCode(CodeGen.Code code, bool address=false)
+		{
+			code.AddComand("push", value);
+		}
+
+		public override int ComputeConstIntValue()
+		{
+			if (type is SymTypeInt)
+			{
+				return Int32.Parse(value);
+			}
+			else if (type is SymTypeChar)
+			{
+				return Int32.Parse(value);
+			}
+
+			throw new FatalException();
 		}
 	}
 
-	class IdentExpr : SynExpr
+	class ConstString : IdentExpr
+	{
+		public ConstString(SymVar var) : base(var) { }
+
+		public override void GenerateCode(CodeGen.Code code, bool address = false)
+		{
+			code.AddComand("push", "offset " + var.name);
+		}
+	}
+
+	class IdentExpr : SynConstExpr
 	{
 		public Token token;
 		public SymVar var = null;
@@ -256,6 +450,13 @@ namespace Compiler
 			line = t.line;
 			pos = t.pos;
 			token = CheckToken(t, Token.Type.IDENTIFICATOR, "требуется идентификатор");
+		}
+
+		public IdentExpr(SymVar v)
+		{
+			lvalue = true;
+			var = v;
+			Check();
 		}
 
 		public IdentExpr(Token t, SymVar v)
@@ -278,6 +479,28 @@ namespace Compiler
 			this.type = var.type;
 		}
 
+		public override void GenerateCode(CodeGen.Code code, bool address=false)
+		{
+			if (address)
+			{
+				code.AddComand("lea", "eax", var.name);
+				code.AddComand("push", "eax");
+			}
+			else
+			{
+				code.AddComand("push", var.name);
+			}
+		}
+
+		public override int ComputeConstIntValue()
+		{
+			if (var is SymVarConst)
+			{
+				return ((SymVarConst)var).value.ComputeConstIntValue();
+			}
+
+			throw new FatalException();
+		}
 	}
 
 	class PrefixOper : UnaryOper
@@ -297,6 +520,41 @@ namespace Compiler
 			s += operand.ToString(level + 1);
 			return s;
 		}
+
+		public override void GenerateCode(CodeGen.Code code, bool address=false)
+		{
+			operand.GenerateCode(code, true);
+			code.AddComand("pop", "eax");
+
+			switch (oper.type)
+			{
+				case Token.Type.OP_NOT:
+					code.AddComand("not", "eax");
+					break;
+				case Token.Type.OP_DEC:
+					code.AddComand("dec", "eax");
+					break;
+				case Token.Type.OP_INC:
+					code.AddComand("inc", "eax");
+					break;
+				case Token.Type.OP_BIT_AND:
+					code.AddComand("lea", "eax", "[eax]");
+					break;
+				case Token.Type.OP_STAR:
+					break;
+			}
+			code.AddComand("push", "eax");
+		}
+
+		public override int ComputeConstIntValue()
+		{
+			if (oper.type != Token.Type.OP_NOT || operand is SynConstExpr)
+			{
+				throw new FatalException();
+			}
+
+			return ((SynConstExpr)operand).ComputeConstIntValue() == 0 ? 0 : 1;
+		}
 	}
 
 	class PostfixOper : UnaryOper
@@ -310,12 +568,33 @@ namespace Compiler
 			s += operand.ToString(level + 1);
 			return s;
 		}
+
+		public override void GenerateCode(CodeGen.Code code, bool address=false)
+		{
+			operand.GenerateCode(code, true);
+			code.AddComand("pop", "eax");
+			string op = "";
+			switch (oper.type)
+			{
+				case Token.Type.OP_INC:
+					op = "inc";
+					break;
+				case Token.Type.OP_DEC:
+					op = "dec";
+					break;
+				default:
+					throw new FatalException();
+			}
+
+			code.AddComand(op, "eax");
+			code.AddComand("push", "eax");
+		}
 	}
 
 	class CallOper : SynExpr
 	{
 		SynExpr operand;
-		ArrayList args = new ArrayList();
+		List<SynExpr> args = new List<SynExpr>();
 
 		public CallOper(SynExpr opnd, int line, int pos)
 		{
@@ -356,15 +635,43 @@ namespace Compiler
 
 			foreach (var a in args)
 			{
-
+				/// тут должна быть проверка переменных=))
 			}
 
 			this.type = operand.type;
 		}
 
+		public override void GenerateCode(CodeGen.Code code, bool address=false)
+		{
+			for (int i = args.Count - 1; i >= 0; i--)
+			{
+				args[i].GenerateCode(code);
+			}
+			operand.GenerateCode(code, true);
+			code.AddComand("pop", "eax");
+			code.AddComand("call", "DWORD PTR [eax]");
+
+			bool ret = false;
+			if (!(((SymTypeFunc)operand.type).type is SymTypeVoid))
+			{
+				code.AddComand("pop", "eax");
+				ret = true;
+			}
+
+			for (int i = 0; i < args.Count; i++)
+			{
+				code.AddComand("pop", "ebx");
+			}
+
+			if (ret)
+			{
+				code.AddComand("push", "eax");
+			}
+		}
+
 	}
 
-	class TerOper : SynExpr
+	class TerOper : SynOper
 	{
 		SynExpr cond, lnode, rnode;
 
@@ -400,9 +707,32 @@ namespace Compiler
 			throw new NotImplementedException();
 			/* нужно попытать прикаставать выозвращаемые результаты к одному типу*/
 		}
+
+		public override void GenerateCode(CodeGen.Code code, bool address=false)
+		{
+			cond.GenerateCode(code);
+			code.AddComand("pop", "eax");
+			code.AddLine(".IF eax!=0");
+			lnode.GenerateCode(code);
+			code.AddLine(".ELSE");
+			rnode.GenerateCode(code);
+			code.AddLine(".ENDIF");
+		}
+
+		public override int ComputeConstIntValue()
+		{
+			if (((SynConstExpr)cond).ComputeConstIntValue() == 0)
+			{
+				return ((SynConstExpr)rnode).ComputeConstIntValue();
+			}
+			else
+			{
+				return ((SynConstExpr)lnode).ComputeConstIntValue();
+			}
+		}
 	}
 
-	class DotOper : SynOper
+	class DotOper : SynExpr
 	{
 		protected Token oper;
 		protected SynExpr parent;
@@ -454,6 +784,26 @@ namespace Compiler
 
 			this.type = child.type;
 		}
+
+		public override void GenerateCode(CodeGen.Code code, bool address=false)
+		{
+			parent.GenerateCode(code, true);
+			code.AddComand("pop", "eax");
+			SymTypeStruct t = ((SymTypeStruct)parent.type);
+
+			int size = 0;
+			foreach (SymVar field in t.fields.vars.Values)
+			{
+				if (field.name == child.var.name)
+				{
+					break;
+				}
+				size += field.type.GetSize();
+			}
+
+			code.AddComand("lea", "eax", "[eax" + (size == 0 ? "]" : "+" + size + "]"));
+			code.AddComand("push", "eax");
+		}
 	}
 
 	class RefOper : DotOper
@@ -481,6 +831,16 @@ namespace Compiler
 			}
 
 			this.type = child.type;
+		}
+
+		public override void GenerateCode(CodeGen.Code code, bool address=false)
+		{
+			PrefixOper op = new PrefixOper(new Token(Token.Type.OP_BIT_AND));
+			op.SetOperand(parent);
+			DotOper dop = new DotOper(new Token(Token.Type.OP_DOT));
+			dop.SetParent(op);
+			dop.SetChild(child);
+			dop.GenerateCode(code, address);
 		}
 	}
 
@@ -518,6 +878,14 @@ namespace Compiler
 			s += child.ToString(level + 1);
 			return s;
 		}
+
+		public override void GenerateCode(CodeGen.Code code, bool address=false)
+		{
+			parent.GenerateCode(code, true);
+			child.GenerateCode(code);
+			SynExpr.GeneratePopResult(code);
+			code.AddComand("push", "[eax + ebx]");
+		}
 	}
 
 	class CastExpr : SynExpr
@@ -545,6 +913,11 @@ namespace Compiler
 		{
 			this.type = type_name;
 		}
+
+		public override void GenerateCode(CodeGen.Code code, bool address=false)
+		{
+			throw new NotImplementedException();
+		}
 	}
 
 	class SizeofOper : PrefixOper
@@ -570,11 +943,16 @@ namespace Compiler
 		{
 			this.type = new SymTypeInt();
 		}
+
+		public override void GenerateCode(CodeGen.Code code, bool address=false)
+		{
+			throw new NotImplementedException();
+		}
 	}
 
 	class SynInit : SynExpr
 	{
-		SynExpr val = null;
+		public SynExpr val = null;
 
 		public SynInit(SynExpr v)
 		{
@@ -597,7 +975,7 @@ namespace Compiler
 
 		public static string GenerateBaseInitCode(SymType t)
 		{
-			if (t is SymTypeScalar || t is SymTypePointer)
+			if (t is SymTypeScalar || t is SymTypePointer || t is SymTypeEnum)
 			{
 				return "?";
 			}
@@ -605,8 +983,31 @@ namespace Compiler
 			{
 				return "";
 			}
+			else if (t is SymTypeStruct)
+			{
+				return "<>";
+			}
+			else if (t is SymTypeArray)
+			{
+				return "dup(" + GenerateBaseInitCode(((SymTypeArray)t).type) + ")";
+			}
 
-			return "ERRRRRR";
+			throw new NotImplementedException();
+		}
+
+		public override void GenerateCode(CodeGen.Code code, bool address=false)
+		{
+			val.GenerateCode(code);
+		}
+
+		public int ComputeConstIntValue()
+		{
+			if (val is SynConstExpr || (val is IdentExpr && ((IdentExpr)val).var is SymVarConst))
+			{
+				return ((SynConstExpr)val).ComputeConstIntValue();
+			}
+
+			throw new FatalException();
 		}
 	}
 
@@ -639,13 +1040,21 @@ namespace Compiler
 		}
 
 		public override void Check() { }
+
+		public override void GenerateCode(CodeGen.Code code, bool address=false)
+		{
+			throw new NotImplementedException();
+		}
 	}
 
 #endregion 
 
 #region Statement
 
-	abstract class SynStmt : SynObj { }
+	abstract class SynStmt : SynObj 
+	{
+		abstract public void GenerateCode(CodeGen.Code code);
+	}
 
 	class StmtIF : SynStmt
 	{
@@ -676,6 +1085,11 @@ namespace Compiler
 			s += rnode == null? "": rnode.ToString(level + 1);
 			return s;
 		}
+
+		public override void GenerateCode(CodeGen.Code code)
+		{
+			throw new NotImplementedException();
+		}
 	}
 
 	class StmtBLOCK : SynStmt
@@ -700,6 +1114,21 @@ namespace Compiler
 			}
 
 			return s;
+		}
+
+		public override void GenerateCode(CodeGen.Code code)
+		{
+			foreach (SynObj stmt in list)
+			{
+				if (stmt is SynExpr)
+				{
+					((SynExpr)stmt).GenerateCode(code);
+				}
+				else
+				{
+					((SynStmt)stmt).GenerateCode(code);
+				}
+			}
 		}
 	}
 
@@ -742,6 +1171,11 @@ namespace Compiler
 			s += block.ToString(level + 1);
 			return s;
 		}
+
+		public override void GenerateCode(CodeGen.Code code)
+		{
+			throw new NotImplementedException();
+		}
 	}
 
 	class StmtWHILE : SynStmt
@@ -766,6 +1200,11 @@ namespace Compiler
 			s += cond.ToString(level + 1);
 			s += block.ToString(level + 1);
 			return s;
+		}
+
+		public override void GenerateCode(CodeGen.Code code)
+		{
+			throw new NotImplementedException();
 		}
 	}
 
@@ -792,6 +1231,11 @@ namespace Compiler
 			s += block.ToString(level + 1);
 			return s;
 		}
+
+		public override void GenerateCode(CodeGen.Code code)
+		{
+			throw new NotImplementedException();
+		}
 	}
 
 	class StmtRETURN : SynStmt
@@ -810,6 +1254,11 @@ namespace Compiler
 			s += val == null? "": val.ToString(level + 1);
 			return s;
 		}
+
+		public override void GenerateCode(CodeGen.Code code)
+		{
+			val.GenerateCode(code);
+		}
 	}
 
 	class StmtCONTINUE : SynStmt 
@@ -820,6 +1269,11 @@ namespace Compiler
 		{
 			return getIndentString(level) + "CONTINUE";
 		}
+
+		public override void GenerateCode(CodeGen.Code code)
+		{
+			throw new NotImplementedException();
+		}
 	}
 
 	class StmtBREAK : SynStmt 
@@ -829,6 +1283,11 @@ namespace Compiler
 		public override string ToString(int level = 0)
 		{
 			return getIndentString(level) + "BREAK";
+		}
+
+		public override void GenerateCode(CodeGen.Code code)
+		{
+			throw new NotImplementedException();
 		}
 	}
 

@@ -17,6 +17,7 @@ namespace Compiler
 		public SymTable parent = null;
 		public List<SymTable> children = new List<SymTable>();
 		public int pos = 0, depth = 0;
+		protected int count_unnamed_types = 0;
 
 
 		public Dictionary<string, SymVar> vars = new Dictionary<string, SymVar>();
@@ -43,6 +44,7 @@ namespace Compiler
 				throw e;
 			}
 
+			var.pos_in_tables = new Pair<int, int>(this.pos, this.depth);
 			consts.Add(var.name, var);
 		}
 
@@ -58,7 +60,7 @@ namespace Compiler
 
 		public void AddVar(SymVar var)
 		{
-			if (vars.ContainsKey(var.GetName()))
+			if (vars.ContainsKey(var.GetName()) || consts.ContainsKey(var.GetName()))
 			{
 				if (var.type is SymTypeFunc && var.Equals(vars[var.name]))
 				{
@@ -69,6 +71,7 @@ namespace Compiler
 				e.Data["delayed"] = true;
 				throw e;
 			}
+			var.pos_in_tables = new Pair<int, int>(this.pos, this.depth);
 			vars.Add(var.GetName(), var);//qutim
 		}
 
@@ -83,7 +86,14 @@ namespace Compiler
 			{
 				throw new SymTable.Exception("переопределение типа \"" + type.GetName() + "\"");
 			}
-			
+
+			if (type.GetName() == Symbol.UNNAMED)
+			{
+				type.SetName(Symbol.UNNAMED + count_unnamed_types);
+				count_unnamed_types++;
+			}
+
+			type.pos_in_tables = new Pair<int, int>(this.pos, this.depth);
 			types.Add(type.GetName(), type);
 		}
 
@@ -224,6 +234,30 @@ namespace Compiler
 			root.AddType(new SymTypeDouble());
 			root.AddType(new SymTypeInt());
 			root.AddType(new SymTypeVoid());
+			
+			SymVarGlobal f = new SymVarGlobal();
+			f.SetName("printf");
+			SymTypeIncludeFunc ft = new SymTypeIncludeFunc(new SymTypeVoid());
+			SymVarParam vp = new SymVarParam();
+			vp.SetType(new SymTypePointer(new SymTypeChar()));
+			ft.SetParam(vp);
+			ft.SetUnspecifiedParam();
+			f.SetType(ft);
+			root.AddVar(f);
+
+			f = new SymVarGlobal();
+			f.SetName("scanf");
+			ft = new SymTypeIncludeFunc(new SymTypeVoid());
+			vp.SetType(new SymTypePointer(new SymTypeChar()));
+			ft.SetParam(vp);
+			ft.SetUnspecifiedParam();
+			f.SetType(ft);
+			root.AddVar(f);
+		}
+
+		public Iterator Begin()
+		{
+			return new Iterator(root);
 		}
 
 		public void NewTable()
@@ -380,9 +414,10 @@ namespace Compiler
 			}
 		}
 
-		public const string UNNAMED = "$UNNAMED$";
+		public const string UNNAMED = "@UNNAMED@";
 
 		public string name;
+		public Pair<int, int> pos_in_tables = new Pair<int, int>(-1, -1);
 
 		public Symbol(string name)
 		{
@@ -412,7 +447,7 @@ namespace Compiler
 
 #region Variable
 
-	class SymVar : Symbol
+	abstract class SymVar : Symbol
 	{
 		public SymType type = null;
 		public SynInit value = null;
@@ -424,6 +459,8 @@ namespace Compiler
 		{
 			token = t;
 			this.name = t.strval;
+			line = t.line;
+			pos = t.pos;
 		}
 
 		virtual public void SetType(SymType type)
@@ -458,9 +495,18 @@ namespace Compiler
 			return base.Equals(obj);
 		}
 
-		virtual public string GenerateCode() 
+		abstract public void GenerateCode(CodeGen.Code code);
+
+		
+		public void GenerateInitialize(CodeGen.Code code)
 		{
-			return "";
+			if (value != null)
+			{
+				AssignOper init = new AssignOper();
+				init.SetLeftOperand(new IdentExpr(this));
+				init.SetRightOperand(value);
+				init.GenerateCode(code);
+			}
 		}
 	}
 
@@ -493,7 +539,12 @@ namespace Compiler
 			}
 
 			return base.Equals(obj);
-		} 
+		}
+
+		public override void GenerateCode(CodeGen.Code code)
+		{
+			throw new NotImplementedException();
+		}
 	}
 
 	class SymVarParam : SymVar
@@ -526,7 +577,12 @@ namespace Compiler
 
 		public string GenerateCode()
 		{
-			return name + ":" + type.GenerateCode();
+			return name + ":" + type.GenerateDeclaratorCode(this);
+		}
+
+		public override void GenerateCode(CodeGen.Code code)
+		{
+			throw new NotImplementedException();
 		}
 	}
 
@@ -535,9 +591,9 @@ namespace Compiler
 		public SymVarLocal(Token t) : base(t) { }
 		public SymVarLocal() : base() { }
 
-		public string GenerateCode()
+		public override void GenerateCode(CodeGen.Code code)
 		{
-			return "LOCAL " + name + ":" + type.GenerateCode();
+			code.AddLine("LOCAL " + name + ":" + type.GenerateDeclaratorCode(this), 6);
 		}
 	}
 
@@ -546,15 +602,36 @@ namespace Compiler
 		public SymVarGlobal(Token t) : base(t) { }
 		public SymVarGlobal() : base() { }
 
-		public void GenerateCode(CodeGen.Code code)
+		public override void GenerateCode(CodeGen.Code code)
 		{
 			if (type is SymTypeFunc)
 			{
-				((SymTypeFunc)type).GenerateCode(code, this);
+				((SymTypeFunc)type).GenerateDeclarationCode(code);
 				return;
 			}
 
-			code.AddLine(0, name + " " + type.GenerateCode() + " " + SynInit.GenerateBaseInitCode(type));
+			code.AddLine(name + " " + type.GenerateDeclaratorCode(this) + " " + SynInit.GenerateBaseInitCode(type));
+		}
+	}
+
+	class SymVarConst : SymVar
+	{
+		public SymVarConst(Token t) : base(t) { }
+
+		public override void GenerateCode(CodeGen.Code code)
+		{
+			if (type is SymTypeInt)
+			{
+				code.AddLine(name + " " + type.GenerateDeclaratorCode(this) + " " + value.ComputeConstIntValue());
+			}
+			else if (type is SymTypeArray)
+			{
+				code.AddLine(name + " " + type.GenerateDeclaratorCode(this) + " dup(\"" + ((ConstExpr)value.val).value + "\", 13, 10, 0)");
+			}
+			else
+			{
+				throw new NotImplementedException();
+			}
 		}
 	}
 
@@ -572,7 +649,9 @@ namespace Compiler
 
 		public abstract int GetSize();
 
-		public abstract string GenerateCode();
+		public abstract string GenerateDeclaratorCode(SymVar var);
+
+		public abstract void GenerateDeclarationCode(CodeGen.Code code);
 	}
 
 	class SymSuperType : SymType
@@ -603,7 +682,12 @@ namespace Compiler
 			return 0;
 		}
 
-		public override string GenerateCode()
+		public override void GenerateDeclarationCode(CodeGen.Code code)
+		{
+			throw new NotImplementedException();
+		}
+
+		public override string GenerateDeclaratorCode(SymVar var)
 		{
 			throw new NotImplementedException();
 		}
@@ -637,6 +721,8 @@ namespace Compiler
 
 			return base.Equals(obj);
 		}
+
+		public override void GenerateDeclarationCode(CodeGen.Code code) {  }
 	}
 
 	class SymTypeVoid : SymTypeScalar
@@ -654,7 +740,7 @@ namespace Compiler
 			return 0;
 		}
 
-		public override string GenerateCode()
+		public override string GenerateDeclaratorCode(SymVar var)
 		{
 			throw new NotImplementedException();
 		}
@@ -676,7 +762,7 @@ namespace Compiler
 			return 8;
 		}
 
-		public override string GenerateCode()
+		public override string GenerateDeclaratorCode(SymVar var)
 		{
 			return "QWORD";
 		}
@@ -698,7 +784,7 @@ namespace Compiler
 			return 1;
 		}
 
-		public override string GenerateCode()
+		public override string GenerateDeclaratorCode(SymVar var)
 		{
 			return "BYTE";
 		}
@@ -720,7 +806,7 @@ namespace Compiler
 			return 4;
 		}
 
-		public override string GenerateCode()
+		public override string GenerateDeclaratorCode(SymVar var)
 		{
 			return "DWORD";
 		}
@@ -749,11 +835,6 @@ namespace Compiler
 			}
 
 			return (SymTypeScalar)itr;
-		}
-
-		public override string GenerateCode()
-		{
-			throw new NotImplementedException();
 		}
 	}
 
@@ -785,9 +866,20 @@ namespace Compiler
 			return 4;
 		}
 
-		public override string GenerateCode()
+		public override void GenerateDeclarationCode(CodeGen.Code code)
 		{
-			throw new NotImplementedException();
+		}
+
+		public override string GenerateDeclaratorCode(SymVar var)
+		{
+			if (var is SymVarLocal)
+			{
+				return "[" + ((SynConstExpr)size).ComputeConstIntValue() + "]:" + type.GenerateDeclaratorCode(var);
+			}
+			else
+			{
+				return type.GenerateDeclaratorCode(var) + " " + ((SynConstExpr)size).ComputeConstIntValue();
+			}
 		}
 	}
 
@@ -795,6 +887,7 @@ namespace Compiler
 	{
 		public List<SymVarParam> args = new List<SymVarParam>();
 		public StmtBLOCK body = null;
+		public bool unspecified_number_param = false;
 
 		public SymTypeFunc(SymType t = null)
 		{
@@ -820,6 +913,11 @@ namespace Compiler
 			}
 
 			this.args.Add(p);
+		}
+
+		public void SetUnspecifiedParam()
+		{
+			unspecified_number_param = true;
 		}
 
 		public void SetBody(StmtBLOCK _body)
@@ -903,21 +1001,20 @@ namespace Compiler
 			return 4;
 		}
 
-		public override string GenerateCode()
+		public override void GenerateDeclarationCode(CodeGen.Code code)
 		{
-			return "";
-		}
-
-		public void GenerateCode(CodeGen.Code code, SymVar var)
-		{
-			string s = var.name + " PROC";
+			code.SetIndent(3);
+			string s = name + " PROC";
 			for (int i = 0; i < args.Count; i++)
 			{
-				args[i].name += "@" + var.name;
-				s += (i == 0? " ": ", ") + args[i].GenerateCode();
+				args[i].name += "@" + name;
+				s += (i == 0 ? " " : ", ") + args[i].GenerateCode();
 			}
-			code.AddLine(3, s);
+			code.AddLine(s);
 
+
+			code.SetIndent(6);
+			CodeGen.Code init = new CodeGen.Code(6);
 			StackTable.Iterator titr = new StackTable.Iterator(body.table);
 			do
 			{
@@ -927,13 +1024,33 @@ namespace Compiler
 					if (!(lv is SymVarParam))
 					{
 						lv.name += pr;
-						code.AddLine(6, lv.GenerateCode());
+						lv.GenerateCode(code);
+						lv.GenerateInitialize(init);
 					}
 				}
 			} while (titr.MoveNext());
+			code = code + init;
 
-			code.AddLine(6, "RET");
-			code.AddLine(3, var.name + " ENDP");
+			code.SetIndent(6);
+			body.GenerateCode(code);
+
+			code.AddLine("RET", 6);
+			code.SetIndent(3);
+			code.AddLine(name + " ENDP");
+		}
+
+		public override string GenerateDeclaratorCode(SymVar var)
+		{
+			throw new NotImplementedException();
+		}
+	}
+
+	class SymTypeIncludeFunc : SymTypeFunc
+	{
+		public SymTypeIncludeFunc(SymType t) : base(t) { }
+
+		public override void GenerateDeclarationCode(CodeGen.Code code)
+		{
 		}
 	}
 
@@ -943,6 +1060,24 @@ namespace Compiler
 
 		public void AddEnumerator(SymVar var)
 		{
+			if (var.value == null)
+			{
+				SynInit val = null;
+				if(enumerators.Count == 0)
+				{
+					val = new SynInit(new ConstExpr(new SymTypeInt(), "0"));
+				}
+				else
+				{
+					BinaryOper expr = new BinaryOper(new Token(Token.Type.OP_PLUS));
+					expr.SetLeftOperand(enumerators.Values.Last().value.val);
+					expr.SetRightOperand(new ConstExpr(new SymTypeInt(), "1"));
+					val = new SynInit(expr);
+				}
+
+				var.SetInitValue(val);
+			}
+
 			this.enumerators.Add(var.name, var);
 		}
 
@@ -967,9 +1102,18 @@ namespace Compiler
 			return 4;
 		}
 
-		public override string GenerateCode()
+		public override void GenerateDeclarationCode(CodeGen.Code code)
 		{
-			throw new NotImplementedException();
+			foreach (SymVarConst c in enumerators.Values)
+			{
+				c.name += "@" + this.name + this.pos_in_tables.first + "_" + pos_in_tables.last;
+				c.GenerateCode(code);
+			}
+		}
+
+		public override string GenerateDeclaratorCode(SymVar var)
+		{
+			return "DWORD";
 		}
 	}
 
@@ -985,11 +1129,6 @@ namespace Compiler
 		public override string ToString()
 		{
 			return  "STRUCT " + this.name + "{" + fields.ToString(true) + "}";
-		}
-
-		public override bool Equals(object obj)
-		{
-			throw new Exception();
 		}
 
 		public override bool Compatible(SymType t)
@@ -1008,9 +1147,22 @@ namespace Compiler
 			return size;
 		}
 
-		public override string GenerateCode()
+		public override void GenerateDeclarationCode(CodeGen.Code code)
 		{
-			throw new NotImplementedException();
+			this.name += "@" + pos_in_tables.first + "_" + pos_in_tables.last;
+			code.AddLine(this.name + " STRUCT", 3);
+			code.SetIndent(6);
+			foreach (SymVar v in fields.vars.Values)
+			{
+				v.GenerateCode(code);
+			}
+			code.SetIndent(3);
+			code.AddLine(this.name + " ENDS");	
+		}
+
+		public override string GenerateDeclaratorCode(SymVar var)
+		{
+			return this.name;
 		}
 	}
 
@@ -1055,7 +1207,12 @@ namespace Compiler
 			return type.GetSize();
 		}
 
-		public override string GenerateCode()
+		public override void GenerateDeclarationCode(CodeGen.Code code)
+		{
+			throw new NotImplementedException();
+		}
+
+		public override string GenerateDeclaratorCode(SymVar var)
 		{
 			throw new NotImplementedException();
 		}
@@ -1084,7 +1241,12 @@ namespace Compiler
 			return type.GetSize();
 		}
 
-		public override string GenerateCode()
+		public override void GenerateDeclarationCode(CodeGen.Code code)
+		{
+			throw new NotImplementedException();
+		}
+
+		public override string GenerateDeclaratorCode(SymVar var)
 		{
 			return "DWORD";
 		}

@@ -85,6 +85,7 @@ namespace Compiler
 		public Logger logger;
 		public StackTable tables = new StackTable();
 		bool parse_const_expr = false;
+		int count_string = 0;
 
 		private Token CheckToken(Token t, Token.Type type, bool get_next_token = false)
 		{
@@ -170,8 +171,8 @@ namespace Compiler
 			}
 			while (scan.Peek().type != Token.Type.EOF);
 
-			Console.Write(tables.ToString());
-			Console.Write(logger.ToString());
+		//	Console.Write(tables.ToString());
+		//	Console.Write(logger.ToString());
 		}
 
 		#region parse expression
@@ -300,29 +301,21 @@ namespace Compiler
 					break;
 
 				case Token.Type.CONST_STRING:
-					res = new ConstExpr(scan.Read(), new SymTypePointer(new SymTypeChar()));
+					Token t = scan.Read();
+					SymVarConst var = new SymVarConst(new Token(Token.Type.CONST_STRING, "str" + count_string));
+
+					SymTypeArray str = new SymTypeArray(tables.GetType("char"));
+					str.SetSize(new ConstExpr(tables.GetType("int"), "" + (t.strval.Length - 2 + 3)));
+					var.SetType(str);
+
+					res = new ConstString(var);
+					var.SetInitValue(new SynInit(new ConstExpr(new SymTypePointer(new SymTypeChar()), t.strval)));
+					tables.AddConst(var);
 					break;
 
 				case Token.Type.IDENTIFICATOR:
-			/*		if (this.parse_const_expr)
-					{
-							if (!tables.ContainsConst(scan.Peek().strval))
-							{
-								if (tables.ContainsIdentifier(scan.Peek().strval))
-								{
-									throw new SynObj.Exception("требуется константное выражение");
-								}
-								tables.AddVar(new SymSuperVar(scan.Peek()));
-								this.logger.Add(new Symbol.Exception(scan.Peek().strval + ": необъявленный идентификатор", scan.GetLine(), scan.GetPos()));
-								res = new ConstExpr(scan.Peek(), tables.GetIdentifier(scan.Read().strval).type);
-								break;
-							}
-							Token c = scan.Read();
-							res = new ConstExpr(c, tables.GetConst(c.strval).type);
-							break;
-					}
-					*/
-					if (!tables.ContainsIdentifier(scan.Peek().strval))
+					SymVar v = null;
+					if (!tables.ContainsIdentifier(scan.Peek().strval) && !tables.ContainsConst(scan.Peek().strval))
 					{
 						tables.AddVar(new SymSuperVar(scan.Peek()));
 						this.logger.Add(new Symbol.Exception(scan.Peek().strval + ": необъявленный идентификатор", scan.GetLine(), scan.GetPos()));
@@ -330,8 +323,9 @@ namespace Compiler
 						break;
 					}
 
+					v = tables.ContainsConst(scan.Peek().strval) ? tables.GetConst(scan.Peek().strval) : tables.GetIdentifier(scan.Peek().strval);
 					Token id = scan.Read();
-					res = new IdentExpr(id, tables.GetIdentifier(id.strval));
+					res = new IdentExpr(id, v);
 					break;
 
 				case Token.Type.LPAREN:
@@ -758,6 +752,8 @@ namespace Compiler
 		
 		#region parse declaration
 
+		enum TypeDeclarator { PARAM, FIELD, VAR };
+
 		private void ParseDeclaration(bool in_block = true, SymTable _table = null)
 		{
 			SymType type = null;
@@ -792,7 +788,7 @@ namespace Compiler
 						scan.Read();
 					}
 
-					var = ParseDeclarator(type, false, in_block);
+					var = ParseDeclarator(type, _table == null? TypeDeclarator.VAR: TypeDeclarator.FIELD, in_block);
 
 					if (var.type is SymTypeFunc && !((SymTypeFunc)var.type).IsEmptyBody()) // значит это функция
 					{
@@ -914,7 +910,7 @@ namespace Compiler
 					do
 					{
 						CheckToken(scan.Peek(), Token.Type.IDENTIFICATOR);
-						var = new SymVar(scan.Read());
+						var = new SymVarConst(scan.Read());
 						var.SetType(tables.GetType("int"));
 
 						if (scan.Peek().type == Token.Type.OP_ASSIGN)
@@ -974,18 +970,12 @@ namespace Compiler
 
 				case Token.Type.KW_STRUCT:
 					type = ParseStruct();
-					if (type.GetName() != Symbol.UNNAMED)
-					{
-						possibly_override = true;
-					}
+					possibly_override = true;
 					break;
 
 				case Token.Type.KW_ENUM:
 					type = ParseEnum();
-					if (type.GetName() != Symbol.UNNAMED)
-					{
-						possibly_override = true;
-					}
+					possibly_override = true;
 					break;
 
 				case Token.Type.IDENTIFICATOR:
@@ -1007,17 +997,17 @@ namespace Compiler
 				{
 					tables.AddType(type);
 				}
-				catch (SymTable.Exception e)
+				catch (Symbol.Exception e)
 				{
-					throw new Symbol.Exception(e.Message, scan.GetPos(), scan.GetLine());
+					ToHandlerException(e);
 				}
 			}
 			return type;
 		}
 
-		private SymVar ParseDeclarator(SymType type, bool is_abstract = false, bool in_block = true)
+		private SymVar ParseDeclarator(SymType type, TypeDeclarator t_decl = TypeDeclarator.VAR, bool in_block = true)
 		{
-			Three<SymType, SymVar, SymType> res = ParseInternalDeclarator(type, is_abstract, in_block);
+			Three<SymType, SymVar, SymType> res = ParseInternalDeclarator(type, t_decl, in_block);
 
 			if (res == null)
 			{
@@ -1048,7 +1038,8 @@ namespace Compiler
 			return l_type_part;
 		}
 
-		private Three<SymType, SymVar, SymType> ParseInternalDeclarator(SymType type = null, bool is_abstract = false, bool in_block = true)
+		private Three<SymType, SymVar, SymType> ParseInternalDeclarator(SymType type = null,
+			TypeDeclarator t_decl = TypeDeclarator.VAR, bool in_block = true)
 		{
 			Pair<SymType, SymType> right_part = new Pair<SymType,SymType>(), left_part = new Pair<SymType,SymType>();
 			bool possibly_function = false;
@@ -1065,13 +1056,13 @@ namespace Compiler
 			switch (scan.Peek().type)
 			{
 				case Token.Type.IDENTIFICATOR:
-					if (is_abstract)
+					if (t_decl == TypeDeclarator.PARAM)
 					{
 						var = new SymVarParam(scan.Read());
 					}
 					else
 					{
-						if (tables.isGlobalTable())
+						if (tables.isGlobalTable() || t_decl == TypeDeclarator.FIELD)
 						{
 							var = new SymVarGlobal(scan.Read());
 						}
@@ -1085,7 +1076,7 @@ namespace Compiler
 
 				case Token.Type.LPAREN:
 					scan.Read();
-					Three<SymType, SymVar, SymType> res = ParseInternalDeclarator(null, is_abstract, in_block);
+					Three<SymType, SymVar, SymType> res = ParseInternalDeclarator(null, t_decl, in_block);
 					if (res == null)
 					{
 						throw new Symbol.Exception("требуется идентификатор", scan.GetPos(), scan.GetLine());
@@ -1098,7 +1089,7 @@ namespace Compiler
 					break;
 
 				default:
-					if (!is_abstract)
+					if (t_decl != TypeDeclarator.PARAM)
 					{
 						return null;
 					}
@@ -1107,7 +1098,7 @@ namespace Compiler
 			}
 
 			if (left_part.first == left_part.last && left_part.last is SymTypeVoid 
-				&& scan.Peek().type != Token.Type.LPAREN && !is_abstract)
+				&& scan.Peek().type != Token.Type.LPAREN && t_decl != TypeDeclarator.PARAM)
 			{
 				throw new Symbol.Exception("недопустимо использование типа \"void\"",
 					((SymTypeVoid)left_part.first).pos, ((SymTypeVoid)left_part.first).line);
@@ -1175,6 +1166,7 @@ namespace Compiler
 								var.SetType(right_part.first);
 								tables.AddVar(var);
 								((SymTypeFunc)right_part.last).SetBody(ParseCompound(func));
+								((SymTypeFunc)right_part.last).SetName(var.GetName());
 								next = false;
 							}
 						}
@@ -1225,7 +1217,7 @@ namespace Compiler
 		private SymVarParam ParseParameterDeclaration()
 		{
 			SymType type = ParseType();
-			return ((SymVarParam)ParseDeclarator(type, true));
+			return ((SymVarParam)ParseDeclarator(type, TypeDeclarator.PARAM));
 		}
 
 		private SynInit ParseInit()

@@ -1,0 +1,4 @@
+enum T{A = 1000, B, C} y;
+int main(){
+	int x = 10 + A + B - C;
+}

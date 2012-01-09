@@ -1,2 +1,4 @@
-int main(int x){
+
+int main(){
+	printf("%d", 1);
 }

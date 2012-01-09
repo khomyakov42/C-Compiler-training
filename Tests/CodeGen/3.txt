@@ -1,0 +1,6 @@
+struct T{
+	int a;
+	struct{
+		int x, y;
+	} point;
+};
