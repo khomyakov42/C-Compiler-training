@@ -35,7 +35,7 @@ namespace Compiler{
 
 		static void Compilation(string input_path, string write_path){
 			FileStream file = new FileStream(@input_path, FileMode.Open, FileAccess.Read);
-			StreamWriter fout = new StreamWriter(@write_path, false);
+			StreamWriter fout = new StreamWriter(@write_path);
 			Scaner scaner = new Scaner(file);
 			Parser parser = new Parser(scaner);
 			CodeGen generator = new CodeGen(fout, parser);
@@ -48,6 +48,9 @@ namespace Compiler{
 			{
 				Console.Write(e.Message);
 			}
+
+			fout.Close();
+			file.Close();
 		}
    }
 }

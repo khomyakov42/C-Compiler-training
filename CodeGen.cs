@@ -30,6 +30,16 @@ namespace Compiler
 				this.code.Add(new AsmLine(s, _indent == -1 ? indent : _indent));
 			}
 
+			public void NewLine()
+			{
+				this.code.Add(new AsmLine("\r\n", 0));
+			}
+
+			public void AddComment(string s, int _indent = -1)
+			{
+				AddLine(";" + s, _indent);
+			}
+
 			public void SetIndent(int _indent)
 			{
 				indent = _indent;
@@ -40,7 +50,7 @@ namespace Compiler
 				string s = "";
 				foreach (var cs in code)
 				{
-					s += cs.ToString() + "\n";
+					s += cs.ToString() + "\r\n";
 				}
 				return s;
 			}
@@ -123,10 +133,11 @@ namespace Compiler
 			res.AddLine(".model flat, stdcall");
 			res.AddLine("include msvcrt.inc", 3);
 			res.AddLine("includelib msvcrt.lib", 3);
+
+			res.AddLine("EXTERN printf: NEAR", 3);
+			res.AddLine("EXTERN scanf: NEAR", 3);
 			code.AddLine(".code");
 			data.AddLine(".data");
-			data.AddLine("printf EQU crt_printf", 3);
-			data.AddLine("scanf EQU crt_scanf", 3);
 			data.SetIndent(3);
 			code.SetIndent(3);
 
@@ -172,13 +183,14 @@ namespace Compiler
 
 			res = res + data;
 			res = res + code;
-			res.AddLine("\n");
+			res.NewLine();
 			res.AddLine("start:");
 			res = res + init;
 			res.AddLine("invoke main", 3);
 			res.AddLine("RET", 3);
 			res.AddLine("end start");
 			Console.Write(res.ToString());
+			ostream.Write(res.ToString());
 		}
 	}
 }

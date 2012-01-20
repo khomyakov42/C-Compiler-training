@@ -197,7 +197,7 @@ namespace Compiler
 
 					SymTable p = cur.parent;
 
-					while (p != null)
+					while (p != null && cur != root)
 					{
 						for (int i = 0; i < p.children.Count; i++)
 						{

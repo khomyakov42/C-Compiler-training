@@ -301,11 +301,12 @@ namespace Compiler
 					break;
 
 				case Token.Type.CONST_STRING:
+					count_string++;
 					Token t = scan.Read();
 					SymVarConst var = new SymVarConst(new Token(Token.Type.CONST_STRING, "str" + count_string));
 
 					SymTypeArray str = new SymTypeArray(tables.GetType("char"));
-					str.SetSize(new ConstExpr(tables.GetType("int"), "" + (t.strval.Length - 2 + 3)));
+					str.SetSize(new ConstExpr(tables.GetType("int"), "" + (t.strval.Length + 3)));
 					var.SetType(str);
 
 					res = new ConstString(var);

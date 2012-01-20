@@ -242,14 +242,17 @@ namespace Compiler
 				case Token.Type.OP_SUB:
 					comand = "sub";
 					break;
+				case Token.Type.OP_STAR:
+					comand = "mul";
+					break;
 				default:
 					throw new NotImplementedException();
 			}
 
 			lnode.GenerateCode(code, address);
 			rnode.GenerateCode(code, address);
+			code.AddComment("\"" + Token.type_to_terms[this.oper.type] + "\"");
 			SynExpr.GeneratePopResult(code);
-
 			code.AddComand(comand, "eax", "ebx");
 			code.AddComand("push", "eax");
 		}
@@ -374,6 +377,7 @@ namespace Compiler
 
 			lnode.GenerateCode(code, true);
 			rnode.GenerateCode(code, false);
+			code.AddComment("'='");
 			SynExpr.GeneratePopResult(code);
 			code.AddComand("mov", "[eax]", "ebx");
 		}
@@ -523,27 +527,39 @@ namespace Compiler
 
 		public override void GenerateCode(CodeGen.Code code, bool address=false)
 		{
-			operand.GenerateCode(code, true);
-			code.AddComand("pop", "eax");
-
-			switch (oper.type)
+			if (oper.type == Token.Type.OP_BIT_AND || oper.type == Token.Type.OP_DEC || oper.type == Token.Type.OP_INC)
 			{
-				case Token.Type.OP_NOT:
-					code.AddComand("not", "eax");
-					break;
-				case Token.Type.OP_DEC:
-					code.AddComand("dec", "eax");
-					break;
-				case Token.Type.OP_INC:
-					code.AddComand("inc", "eax");
-					break;
-				case Token.Type.OP_BIT_AND:
-					code.AddComand("lea", "eax", "[eax]");
-					break;
-				case Token.Type.OP_STAR:
-					break;
+				operand.GenerateCode(code, true);
+				if (oper.type == Token.Type.OP_BIT_AND)
+				{
+					return;
+				}
+				code.AddComand("mov", "ebx", "[eax]");
+				code.AddComand(oper.type == Token.Type.OP_DEC? "dec": "inc", "ebx");
+				code.AddComand("mov", "[eax]", "ebx");
+				code.AddComand("push", "ebx");
 			}
-			code.AddComand("push", "eax");
+			else
+			{
+				operand.GenerateCode(code, false);
+				code.AddComand("pop", "eax");
+				switch (oper.type)
+				{
+					case Token.Type.OP_NOT:
+					case Token.Type.OP_TILDE:
+						code.AddComand("not", "eax");
+						break;
+					case Token.Type.OP_PLUS:
+						break;
+					case Token.Type.OP_SUB:
+						code.AddComand("neg", "eax");
+						break;
+					case Token.Type.OP_STAR:
+						code.AddComand("mov", "eax", "[eax]");
+						break;
+				}
+				code.AddComand("push", "eax");
+			}
 		}
 
 		public override int ComputeConstIntValue()
@@ -573,6 +589,8 @@ namespace Compiler
 		{
 			operand.GenerateCode(code, true);
 			code.AddComand("pop", "eax");
+			code.AddComand("mov", "ebx", "[eax]");
+			code.AddComand("push", "ebx");
 			string op = "";
 			switch (oper.type)
 			{
@@ -585,9 +603,8 @@ namespace Compiler
 				default:
 					throw new FatalException();
 			}
-
-			code.AddComand(op, "eax");
-			code.AddComand("push", "eax");
+			code.AddComand(op, "ebx");
+			code.AddComand("mov", "[eax]", "ebx");
 		}
 	}
 
@@ -649,7 +666,7 @@ namespace Compiler
 			}
 			operand.GenerateCode(code, true);
 			code.AddComand("pop", "eax");
-			code.AddComand("call", "DWORD PTR [eax]");
+			code.AddComand("call", "eax");
 
 			bool ret = false;
 			if (!(((SymTypeFunc)operand.type).type is SymTypeVoid))
@@ -788,6 +805,7 @@ namespace Compiler
 		public override void GenerateCode(CodeGen.Code code, bool address=false)
 		{
 			parent.GenerateCode(code, true);
+			code.AddComment("\".\"");
 			code.AddComand("pop", "eax");
 			SymTypeStruct t = ((SymTypeStruct)parent.type);
 
@@ -800,9 +818,16 @@ namespace Compiler
 				}
 				size += field.type.GetSize();
 			}
-
+			
 			code.AddComand("lea", "eax", "[eax" + (size == 0 ? "]" : "+" + size + "]"));
-			code.AddComand("push", "eax");
+			if (address)
+			{
+				code.AddComand("push", "eax");
+			}
+			else
+			{
+				code.AddComand("push", "[eax]");
+			}
 		}
 	}
 

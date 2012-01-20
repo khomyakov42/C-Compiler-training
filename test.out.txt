@@ -1,0 +1,189 @@
+.386
+.model flat, stdcall
+   include msvcrt.inc
+   includelib msvcrt.lib
+   EXTERN printf: NEAR
+   EXTERN scanf: NEAR
+.data
+   str1 BYTE 5 dup("%d", 13, 10, 0)
+   str2 BYTE 5 dup("%d", 13, 10, 0)
+   str3 BYTE 5 dup("%d", 13, 10, 0)
+   str4 BYTE 19 dup("addr: x=%d, y=%d", 13, 10, 0)
+   str5 BYTE 20 dup("val: x=%d, y = %d", 13, 10, 0)
+   str6 BYTE 5 dup("%d", 13, 10, 0)
+   str7 BYTE 5 dup("%d", 13, 10, 0)
+   str8 BYTE 5 dup("%d", 13, 10, 0)
+   str9 BYTE 5 dup("%d", 13, 10, 0)
+   str10 BYTE 5 dup("%d", 13, 10, 0)
+   str11 BYTE 5 dup("%d", 13, 10, 0)
+   str12 BYTE 5 dup("%d", 13, 10, 0)
+.code
+   main PROC
+      LOCAL x@1_0:DWORD
+      LOCAL y@1_0:DWORD
+      lea eax, x@1_0
+      push eax
+      push 5
+      ;'='
+      pop ebx
+      pop eax
+      mov [eax], ebx
+      lea eax, y@1_0
+      push eax
+      lea eax, x@1_0
+      push eax
+      ;'='
+      pop ebx
+      pop eax
+      mov [eax], ebx
+      lea eax, x@1_0
+      push eax
+      mov ebx, [eax]
+      inc ebx
+      mov [eax], ebx
+      push ebx
+      push offset str1
+      lea eax, printf
+      push eax
+      pop eax
+      call eax
+      pop ebx
+      pop ebx
+      push x@1_0
+      pop eax
+      push eax
+      push offset str2
+      lea eax, printf
+      push eax
+      pop eax
+      call eax
+      pop ebx
+      pop ebx
+      push x@1_0
+      pop eax
+      neg eax
+      push eax
+      push offset str3
+      lea eax, printf
+      push eax
+      pop eax
+      call eax
+      pop ebx
+      pop ebx
+      push y@1_0
+      lea eax, x@1_0
+      push eax
+      push offset str4
+      lea eax, printf
+      push eax
+      pop eax
+      call eax
+      pop ebx
+      pop ebx
+      pop ebx
+      push y@1_0
+      pop eax
+      mov eax, [eax]
+      push eax
+      push x@1_0
+      push offset str5
+      lea eax, printf
+      push eax
+      pop eax
+      call eax
+      pop ebx
+      pop ebx
+      pop ebx
+      lea eax, x@1_0
+      push eax
+      mov ebx, [eax]
+      dec ebx
+      mov [eax], ebx
+      push ebx
+      push offset str6
+      lea eax, printf
+      push eax
+      pop eax
+      call eax
+      pop ebx
+      pop ebx
+      push x@1_0
+      pop eax
+      not eax
+      push eax
+      push offset str7
+      lea eax, printf
+      push eax
+      pop eax
+      call eax
+      pop ebx
+      pop ebx
+      push x@1_0
+      pop eax
+      not eax
+      push eax
+      pop eax
+      not eax
+      push eax
+      push offset str8
+      lea eax, printf
+      push eax
+      pop eax
+      call eax
+      pop ebx
+      pop ebx
+      push x@1_0
+      pop eax
+      not eax
+      push eax
+      push offset str9
+      lea eax, printf
+      push eax
+      pop eax
+      call eax
+      pop ebx
+      pop ebx
+      lea eax, x@1_0
+      push eax
+      pop eax
+      mov ebx, [eax]
+      push ebx
+      dec ebx
+      mov [eax], ebx
+      push offset str10
+      lea eax, printf
+      push eax
+      pop eax
+      call eax
+      pop ebx
+      pop ebx
+      lea eax, x@1_0
+      push eax
+      pop eax
+      mov ebx, [eax]
+      push ebx
+      inc ebx
+      mov [eax], ebx
+      push offset str11
+      lea eax, printf
+      push eax
+      pop eax
+      call eax
+      pop ebx
+      pop ebx
+      push x@1_0
+      push offset str12
+      lea eax, printf
+      push eax
+      pop eax
+      call eax
+      pop ebx
+      pop ebx
+      RET
+   main ENDP
+
+
+start:
+   invoke main
+   RET
+end start
