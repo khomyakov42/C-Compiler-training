@@ -233,7 +233,13 @@ namespace Compiler
 
 		public override void GenerateCode(CodeGen.Code code, bool address=false)
 		{
+			lnode.GenerateCode(code, address);
+			rnode.GenerateCode(code, address);
+			code.AddComment("\"" + Token.type_to_terms[this.oper.type] + "\"");
+			SynExpr.GeneratePopResult(code);
+
 			string comand = "";
+			string reg_res = "eax";
 			switch (this.oper.type)
 			{
 				case Token.Type.OP_PLUS:
@@ -243,18 +249,35 @@ namespace Compiler
 					comand = "sub";
 					break;
 				case Token.Type.OP_STAR:
-					comand = "mul";
+					comand = "imul";
 					break;
+				case Token.Type.OP_DIV:
+					comand = "idiv";
+					break;
+				case Token.Type.OP_MOD:
+					comand = "idiv";
+					reg_res = "edx";
+					break;
+				case Token.Type.OP_L_SHIFT:
+				case Token.Type.OP_R_SHIFT:
+				case Token.Type.OP_AND:
+				case Token.Type.OP_OR:
+				case Token.Type.OP_XOR:
+				case Token.Type.OP_BIT_AND:
+				case Token.Type.OP_BIT_OR:
+				case Token.Type.OP_EQUAL:
+				case Token.Type.OP_NOT_EQUAL:
+				case Token.Type.OP_LESS:
+				case Token.Type.OP_MORE:
+				case Token.Type.OP_LESS_OR_EQUAL:
+				case Token.Type.OP_MORE_OR_EQUAL:
+					break;
+
 				default:
 					throw new NotImplementedException();
 			}
-
-			lnode.GenerateCode(code, address);
-			rnode.GenerateCode(code, address);
-			code.AddComment("\"" + Token.type_to_terms[this.oper.type] + "\"");
-			SynExpr.GeneratePopResult(code);
 			code.AddComand(comand, "eax", "ebx");
-			code.AddComand("push", "eax");
+			code.AddComand("push", reg_res);
 		}
 
 		public override int ComputeConstIntValue()
