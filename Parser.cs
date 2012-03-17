@@ -488,7 +488,7 @@ namespace Compiler
 						return res;
 					}
 
-					res = ParseExpression();
+					res = ParseExpression(true, true);
 					CheckToken(scan.Peek(), Token.Type.RPAREN, true);
 					return ParsePostfixExpr(res);
 
@@ -586,7 +586,7 @@ namespace Compiler
 
 		private SynObj ParseStmExpression()
 		{
-			SynObj res = ParseExpression(false);
+			StmtExpr res = new StmtExpr(ParseExpression(false, true));
 			CheckToken(scan.Peek(), Token.Type.SEMICOLON, true);
 			return res;
 		}

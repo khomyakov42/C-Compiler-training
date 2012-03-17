@@ -8,9 +8,11 @@ namespace Compiler
 	
 	class CodeGen
 	{
+		public const string REG_THROW_TOP_STACK_VAL = "edi";
 		public class Code
 		{
 			protected int indent = 0;
+			private static int count_label = 0;
 			List<AsmLine> code =  new List<AsmLine>();
 
 			public Code(int indent = 0)
@@ -30,6 +32,11 @@ namespace Compiler
 				this.code.Add(new AsmLine(s, _indent == -1 ? indent : _indent));
 			}
 
+			public void AddLabel(string label)
+			{
+				this.code.Add(new AsmLine(label + ":", 0));
+			}
+
 			public void NewLine()
 			{
 				this.code.Add(new AsmLine("\r\n", 0));
@@ -38,6 +45,11 @@ namespace Compiler
 			public void AddComment(string s, int _indent = -1)
 			{
 				AddLine(";" + s, _indent);
+			}
+
+			public string GenerateLabel(string prefix="label")
+			{
+				return prefix + Code.count_label++;
 			}
 
 			public void SetIndent(int _indent)
@@ -116,6 +128,7 @@ namespace Compiler
 			this.parser = parser;
 			parser.Parse();
 			titr = parser.tables.Begin();
+			Console.Write(parser.tables.ToString());
 			ostream = stream;
 		}
 
@@ -131,15 +144,14 @@ namespace Compiler
 			init.SetIndent(3);
 			res.AddLine(".386");
 			res.AddLine(".model flat, stdcall");
-			res.AddLine("include msvcrt.inc", 3);
-			res.AddLine("includelib msvcrt.lib", 3);
+			res.AddLine("include " + System.IO.Path.Combine(Program.PATH_TO_MASM_LINCLUDE, "msvcrt.inc") , 3);//)"C:\\masm32\\include\\msvcrt.inc", 3);
+			res.AddLine("includelib " + System.IO.Path.Combine(Program.PATH_TO_MASM_LIB, "msvcrt.lib"), 3);//C:\\masm32\\lib\\msvcrt.lib", 3);
 
-			res.AddLine("EXTERN printf: NEAR", 3);
-			res.AddLine("EXTERN scanf: NEAR", 3);
 			code.AddLine(".code");
 			data.AddLine(".data");
 			data.SetIndent(3);
 			code.SetIndent(3);
+			
 
 			do
 			{
@@ -175,7 +187,11 @@ namespace Compiler
 			titr = parser.tables.Begin();
 			foreach (var v in titr.Current().vars.Values)
 			{
-				if (v.type is SymTypeFunc)
+				if (v.type is SymTypeIncludeFunc)
+				{
+					((SymVarGlobal)v).GenerateCode(code);
+				}
+				else if (v.type is SymTypeFunc)
 				{
 					((SymVarGlobal)v).GenerateCode(code);
 				}
@@ -186,7 +202,7 @@ namespace Compiler
 			res.NewLine();
 			res.AddLine("start:");
 			res = res + init;
-			res.AddLine("invoke main", 3);
+			res.AddLine("call main", 3);
 			res.AddLine("RET", 3);
 			res.AddLine("end start");
 			Console.Write(res.ToString());

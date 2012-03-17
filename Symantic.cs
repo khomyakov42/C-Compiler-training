@@ -67,7 +67,8 @@
 
 					if (ltype is SymTypePointer)
 					{
-						if (rtype is SymTypeInt || rtype is SymTypeChar || rtype is SymTypeEnum || rtype is SymTypePointer)
+						if (rtype is SymTypeInt || rtype is SymTypeChar || rtype is SymTypeEnum || (rtype is SymTypePointer 
+							&& ((SymTypePointer)ltype).type.Equals(((SymTypePointer)rtype).type)))
 						{
 							return true;
 						}

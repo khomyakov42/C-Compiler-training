@@ -242,6 +242,7 @@ namespace Compiler
 			vp.SetType(new SymTypePointer(new SymTypeChar()));
 			ft.SetParam(vp);
 			ft.SetUnspecifiedParam();
+			ft.SetName("printf");
 			f.SetType(ft);
 			root.AddVar(f);
 
@@ -251,6 +252,14 @@ namespace Compiler
 			vp.SetType(new SymTypePointer(new SymTypeChar()));
 			ft.SetParam(vp);
 			ft.SetUnspecifiedParam();
+			ft.SetName("scanf");
+			f.SetType(ft);
+			root.AddVar(f);
+
+			f = new SymVarGlobal();
+			f.SetName("getchar");
+			ft = new SymTypeIncludeFunc(new SymTypeInt());
+			ft.SetName("getchar");
 			f.SetType(ft);
 			root.AddVar(f);
 		}
@@ -841,6 +850,7 @@ namespace Compiler
 	class SymTypeArray : SymRefType
 	{
 		SynExpr size = null;
+		int comp_size = 0;
 		public SymTypeArray(SymType t = null)
 		{
 			this.type = t;
@@ -849,6 +859,12 @@ namespace Compiler
 		public void SetSize(SynExpr size)
 		{
 			this.size = size;
+			this.comp_size = ((SynConstExpr)size).ComputeConstIntValue();
+		}
+
+		public int GetSizeArray()
+		{
+			return this.comp_size;
 		}
 
 		public override string ToString()
@@ -872,13 +888,21 @@ namespace Compiler
 
 		public override string GenerateDeclaratorCode(SymVar var)
 		{
+			int sz = 1;
+			SymType t = this;
+			while (t is SymTypeArray)
+			{
+				sz *= ((SynConstExpr)((SymTypeArray)t).size).ComputeConstIntValue();
+				t = ((SymTypeArray)t).type;
+			}
+
 			if (var is SymVarLocal)
 			{
-				return "[" + ((SynConstExpr)size).ComputeConstIntValue() + "]:" + type.GenerateDeclaratorCode(var);
+				return "[" + sz + "]:" + t.GenerateDeclaratorCode(var);
 			}
 			else
 			{
-				return type.GenerateDeclaratorCode(var) + " " + ((SynConstExpr)size).ComputeConstIntValue();
+				return t.GenerateDeclaratorCode(var) + " " + sz;
 			}
 		}
 	}
@@ -1051,6 +1075,7 @@ namespace Compiler
 
 		public override void GenerateDeclarationCode(CodeGen.Code code)
 		{
+			code.AddLine("extern " + this.name + ":near", 3);
 		}
 	}
 

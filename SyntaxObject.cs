@@ -86,6 +86,7 @@ namespace Compiler
 			code.AddComand("pop", "ebx");
 			code.AddComand("pop", "eax"); 
 		}
+
 	}
 
 	abstract class SynConstExpr : SynExpr
@@ -167,10 +168,17 @@ namespace Compiler
 
 		public override void GenerateCode(CodeGen.Code code, bool address=false)
 		{
-			foreach (SynExpr expr in list)
+			int i = list.Count;
+			foreach (var expr in list)
 			{
 				expr.GenerateCode(code, address);
-				code.AddComand("pop");
+
+				i--;
+				if (i == 0)
+				{
+					break;
+				}
+				code.AddComand("pop", CodeGen.REG_THROW_TOP_STACK_VAL);
 			}
 		}
 
@@ -237,46 +245,111 @@ namespace Compiler
 			rnode.GenerateCode(code, address);
 			code.AddComment("\"" + Token.type_to_terms[this.oper.type] + "\"");
 			SynExpr.GeneratePopResult(code);
-
-			string comand = "";
-			string reg_res = "eax";
+			
+			string reg_res = "eax", true_label, false_label, end_label;
 			switch (this.oper.type)
 			{
 				case Token.Type.OP_PLUS:
-					comand = "add";
+					code.AddComand("add", "eax", "ebx");
 					break;
 				case Token.Type.OP_SUB:
-					comand = "sub";
+					code.AddComand("sub", "eax", "ebx");
 					break;
 				case Token.Type.OP_STAR:
-					comand = "imul";
+					code.AddComand("imul", "eax", "ebx");
 					break;
 				case Token.Type.OP_DIV:
-					comand = "idiv";
+					code.AddComand("cdq");
+					code.AddComand("idiv", "ebx");
 					break;
 				case Token.Type.OP_MOD:
-					comand = "idiv";
+					code.AddComand("cdq");
+					code.AddComand("idiv", "ebx");
 					reg_res = "edx";
 					break;
 				case Token.Type.OP_L_SHIFT:
+					code.AddComand("mov", "ecx", "ebx");
+					code.AddComand("sal", "eax", "cl");
+					break;
 				case Token.Type.OP_R_SHIFT:
-				case Token.Type.OP_AND:
-				case Token.Type.OP_OR:
+					code.AddComand("mov", "ecx", "ebx");
+					code.AddComand("sar", "eax", "cl");
+					break;
 				case Token.Type.OP_XOR:
+					code.AddComand("xor", "eax", "ebx");
+					break;
 				case Token.Type.OP_BIT_AND:
+					code.AddComand("and", "eax", "ebx");
+					break;
+				case Token.Type.OP_AND:
+					false_label = code.GenerateLabel(); end_label = code.GenerateLabel();
+					code.AddComand("cmp", "eax", "0");
+					code.AddComand("je", false_label);
+					code.AddComand("cmp", "ebx", "0");
+					code.AddComand("je", false_label);
+					code.AddComand("push", "1");
+					code.AddComand("jmp", end_label);
+					code.AddLabel(false_label);
+					code.AddComand("push", "0");
+					code.AddLabel(end_label);
+					break;
+				case Token.Type.OP_OR:
+					true_label = code.GenerateLabel(); end_label = code.GenerateLabel();
+					code.AddComand("cmp", "eax", "1");
+					code.AddComand("je", true_label);
+					code.AddComand("cmp", "ebx", "1");
+					code.AddComand("je", true_label);
+					code.AddComand("push", "0");
+					code.AddComand("jmp", end_label);
+					code.AddLabel(true_label);
+					code.AddComand("push", "0");
+					code.AddLabel(end_label);
+					break;
 				case Token.Type.OP_BIT_OR:
-				case Token.Type.OP_EQUAL:
+					code.AddComand("or", "eax", "ebx");
+					break;
+
 				case Token.Type.OP_NOT_EQUAL:
+				case Token.Type.OP_EQUAL:
 				case Token.Type.OP_LESS:
 				case Token.Type.OP_MORE:
 				case Token.Type.OP_LESS_OR_EQUAL:
 				case Token.Type.OP_MORE_OR_EQUAL:
+					code.AddComand("cmp", "eax", "ebx");
+					true_label = code.GenerateLabel(); end_label = code.GenerateLabel(); false_label = code.GenerateLabel();
+					switch (this.oper.type)
+					{
+						case Token.Type.OP_NOT_EQUAL:
+							code.AddComand("jne", true_label);
+							break;
+						case Token.Type.OP_EQUAL:
+							code.AddComand("je", true_label);
+							break;
+						case Token.Type.OP_LESS:
+							code.AddComand("jl", true_label);
+							break;
+						case Token.Type.OP_MORE:
+							code.AddComand("jg", true_label);
+							break;
+						case Token.Type.OP_LESS_OR_EQUAL:
+							code.AddComand("jle", true_label);
+							break;
+						case Token.Type.OP_MORE_OR_EQUAL:
+							code.AddComand("jge", true_label);
+							break;
+					}
+					code.AddComand("jmp", false_label);
+					code.AddLabel(true_label);
+					code.AddComand("mov", "eax", "1");
+					code.AddComand("jmp", end_label);
+					code.AddLabel(false_label);
+					code.AddComand("mov", "eax", "0");
+					code.AddLabel(end_label);
 					break;
 
 				default:
 					throw new NotImplementedException();
 			}
-			code.AddComand(comand, "eax", "ebx");
 			code.AddComand("push", reg_res);
 		}
 
@@ -403,6 +476,7 @@ namespace Compiler
 			code.AddComment("'='");
 			SynExpr.GeneratePopResult(code);
 			code.AddComand("mov", "[eax]", "ebx");
+			code.AddComand("push", "[eax]");
 		}
 	}
 
@@ -498,7 +572,7 @@ namespace Compiler
 
 		public override string ToString(int level = 0)
 		{
-			return getIndentString(level) + token.strval;
+			return getIndentString(level) + (token == null? "const": token.strval);
 		}
 
 		public override void Check()
@@ -552,15 +626,20 @@ namespace Compiler
 		{
 			if (oper.type == Token.Type.OP_BIT_AND || oper.type == Token.Type.OP_DEC || oper.type == Token.Type.OP_INC)
 			{
-				operand.GenerateCode(code, true);
-				if (oper.type == Token.Type.OP_BIT_AND)
+				
+				if (oper.type != Token.Type.OP_BIT_AND)
 				{
+					BinaryOper op = new BinaryOper(new Token(oper.type == Token.Type.OP_INC ? Token.Type.OP_PLUS : Token.Type.OP_SUB));
+					op.SetLeftOperand(operand);
+					op.SetRightOperand(new ConstExpr(new Token(Token.Type.CONST_INT, "1"), new SymTypeInt()));
+					AssignOper assign = new AssignOper(new Token(Token.Type.OP_ASSIGN));
+					assign.SetLeftOperand(operand);
+					assign.SetRightOperand(op);
+					assign.GenerateCode(code);
 					return;
 				}
-				code.AddComand("mov", "ebx", "[eax]");
-				code.AddComand(oper.type == Token.Type.OP_DEC? "dec": "inc", "ebx");
-				code.AddComand("mov", "[eax]", "ebx");
-				code.AddComand("push", "ebx");
+
+				operand.GenerateCode(code, true);
 			}
 			else
 			{
@@ -610,6 +689,19 @@ namespace Compiler
 
 		public override void GenerateCode(CodeGen.Code code, bool address=false)
 		{
+
+			List<SynExpr> list = new List<SynExpr>();
+			BinaryOper op = new BinaryOper(new Token(oper.type == Token.Type.OP_INC ? Token.Type.OP_PLUS : Token.Type.OP_SUB));
+			op.SetLeftOperand(operand);
+			op.SetRightOperand(new ConstExpr(new Token(Token.Type.CONST_INT, "1"), new SymTypeInt()));
+			list.Add(op);
+			AssignOper assign = new AssignOper(new Token(Token.Type.OP_ASSIGN));
+			assign.SetLeftOperand(operand);
+			assign.SetRightOperand(op);
+			list.Add(assign);
+			new ExprList(list).GenerateCode(code);
+			/*
+
 			operand.GenerateCode(code, true);
 			code.AddComand("pop", "eax");
 			code.AddComand("mov", "ebx", "[eax]");
@@ -627,7 +719,7 @@ namespace Compiler
 					throw new FatalException();
 			}
 			code.AddComand(op, "ebx");
-			code.AddComand("mov", "[eax]", "ebx");
+			code.AddComand("mov", "[eax]", "ebx");*/
 		}
 	}
 
@@ -698,15 +790,7 @@ namespace Compiler
 				ret = true;
 			}
 
-			for (int i = 0; i < args.Count; i++)
-			{
-				code.AddComand("pop", "ebx");
-			}
-
-			if (ret)
-			{
-				code.AddComand("push", "eax");
-			}
+			code.AddComand("push", ret ? "eax" : CodeGen.REG_THROW_TOP_STACK_VAL);
 		}
 
 	}
@@ -930,9 +1014,27 @@ namespace Compiler
 		public override void GenerateCode(CodeGen.Code code, bool address=false)
 		{
 			parent.GenerateCode(code, true);
-			child.GenerateCode(code);
+			BinaryOper oper = new BinaryOper(new Token(Token.Type.OP_STAR));
+			int p = parent.getType().GetSize();
+			if (this.parent.getType() is SymTypeArray && ((SymTypeArray)this.parent.getType()).type is SymTypeArray)
+			{
+				p *= ((SymTypeArray)this.parent.getType()).GetSizeArray();
+			}
+			oper.SetLeftOperand(child);
+			oper.SetRightOperand(new ConstExpr(new SymTypeInt(), p.ToString()));
+			oper.GenerateCode(code);
+			code.AddComment("\"[]\"");
 			SynExpr.GeneratePopResult(code);
-			code.AddComand("push", "[eax + ebx]");
+			code.AddComand("add", "eax", "ebx");
+
+			if (address)
+			{
+				code.AddComand("push", "eax");
+			}
+			else
+			{
+				code.AddComand("push", "[eax]");
+			}
 		}
 	}
 
@@ -1037,7 +1139,7 @@ namespace Compiler
 			}
 			else if (t is SymTypeArray)
 			{
-				return "dup(" + GenerateBaseInitCode(((SymTypeArray)t).type) + ")";
+				return "dup(" + "?" + ")";
 			}
 
 			throw new NotImplementedException();
@@ -1339,6 +1441,27 @@ namespace Compiler
 		}
 	}
 
+	class StmtExpr : SynStmt
+	{
+		SynExpr expr;
+
+		public StmtExpr(SynExpr _expr = null)
+		{
+			this.expr = _expr;
+		}
+
+		public override string ToString(int level = 0)
+		{
+			return getIndentString(level) + (expr == null ? ";" : expr.ToString(level) + ";");
+		}
+
+		public override void GenerateCode(CodeGen.Code code)
+		{
+			expr.GenerateCode(code);
+			code.AddComand("pop", CodeGen.REG_THROW_TOP_STACK_VAL);
+			code.AddComment("\";\"");
+		}
+	}
 #endregion
 
 }

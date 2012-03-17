@@ -1,0 +1,13 @@
+struct{
+   struct point{
+      int x, y;
+   };
+   point p1, p2;
+} X;
+int main(){
+   int a;
+   X.p1.x = 1;
+   X.p1.y = 2;
+   a = X.p1.x + X.p1.y;
+   printf("%d", a);
+}

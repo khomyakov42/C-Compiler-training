@@ -1,0 +1,22 @@
+int x = 1, y = 2;
+int main() {
+	printf("%d + %d = %d", x, y, x + y);
+	printf("%d - %d = %d", x, y, x - y);
+	printf("%d * %d = %d", x, y, x * y);
+	printf("%d / %d = %d", x, y, x / y);
+	printf("%d %% %d = %d", x, y, x % y);
+	printf("%d >> %d = %d", x, y, x >> y);
+	printf("%d << %d = %d", x, y, x << y);
+	printf("%d & %d = %d", x, y, x & y);
+	printf("%d | %d = %d", x, y, x | y);
+	printf("%d ^ %d = %d", x, y, x ^ y);
+	printf("%d || %d = %d", x, y, x || y);
+	printf("%d && %d = %d", x, y, x && y);
+	printf("%d == %d = %d", x, y, x == y);
+	printf("%d != %d = %d", x, y, x != y);
+	printf("%d < %d = %d", x, y, x < y);
+	printf("%d > %d = %d", x, y, x > y);
+	printf("%d <= %d = %d", x, y, x <= y);
+	printf("%d >= %d = %d", x, y, x >= y);
+	getchar();
+}
