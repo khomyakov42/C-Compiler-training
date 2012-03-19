@@ -3,685 +3,59 @@
    include C:\masm32\include\msvcrt.inc
    includelib C:\masm32\lib\msvcrt.lib
 .data
-   str1 BYTE 5 dup("%d", 13, 10, 0)
-   str2 BYTE 5 dup("%d", 13, 10, 0)
-   str3 BYTE 5 dup("%d", 13, 10, 0)
-   str4 BYTE 5 dup("%d", 13, 10, 0)
-   str5 BYTE 5 dup("%d", 13, 10, 0)
-   str6 BYTE 5 dup("%d", 13, 10, 0)
-   str7 BYTE 5 dup("%d", 13, 10, 0)
-   str8 BYTE 5 dup("%d", 13, 10, 0)
-   str9 BYTE 5 dup("%d", 13, 10, 0)
-   str10 BYTE 5 dup("%d", 13, 10, 0)
-   str11 BYTE 5 dup("%d", 13, 10, 0)
-   str12 BYTE 5 dup("%d", 13, 10, 0)
-   str13 BYTE 5 dup("%d", 13, 10, 0)
-   str14 BYTE 5 dup("%d", 13, 10, 0)
-   str15 BYTE 5 dup("%d", 13, 10, 0)
-   x DWORD 6 dup(?)
-   x2 DWORD 12 dup(?)
-   x3 DWORD 24 dup(?)
+   str1 BYTE 8 dup("%d %d", 13, 10, 0)
+   str2 BYTE 8 dup("%d %d", 13, 10, 0)
+   str3 BYTE 8 dup("%d %d", 13, 10, 0)
+   str4 BYTE 8 dup("%d %d", 13, 10, 0)
+   str5 BYTE 8 dup("%d %d", 13, 10, 0)
+   str6 BYTE 8 dup("%d %d", 13, 10, 0)
+   str7 BYTE 8 dup("%d %d", 13, 10, 0)
+   arr DWORD 10 dup(?)
+   arr2 DWORD 100 dup(?)
+   x DWORD ?
 .code
    extern printf:near
    extern scanf:near
    extern getchar:near
    main PROC
+      lea eax, arr2
+      push eax
       lea eax, x
       push eax
-      push 0
-      push 8
-      ;"*"
-      pop ebx
-      pop eax
-      imul eax, ebx
-      push eax
-      ;"[]"
-      pop ebx
-      pop eax
-      add eax, ebx
-      push eax
-      push 0
-      push 4
-      ;"*"
-      pop ebx
-      pop eax
-      imul eax, ebx
-      push eax
-      ;"[]"
-      pop ebx
-      pop eax
-      add eax, ebx
-      push eax
-      push 100
       ;'='
-      pop ebx
       pop eax
+      pop ebx
       mov [eax], ebx
       push [eax]
       pop edi
       ;";"
-      lea eax, x
-      push eax
-      push 0
-      push 8
-      ;"*"
-      pop ebx
-      pop eax
-      imul eax, ebx
-      push eax
-      ;"[]"
-      pop ebx
-      pop eax
-      add eax, ebx
-      push eax
-      push 1
-      push 4
-      ;"*"
-      pop ebx
-      pop eax
-      imul eax, ebx
-      push eax
-      ;"[]"
-      pop ebx
-      pop eax
-      add eax, ebx
-      push eax
-      push 1
-      ;'='
-      pop ebx
-      pop eax
-      mov [eax], ebx
-      push [eax]
-      pop edi
-      ;";"
-      lea eax, x
-      push eax
-      push 1
-      push 8
-      ;"*"
-      pop ebx
-      pop eax
-      imul eax, ebx
-      push eax
-      ;"[]"
-      pop ebx
-      pop eax
-      add eax, ebx
-      push eax
-      push 0
-      push 4
-      ;"*"
-      pop ebx
-      pop eax
-      imul eax, ebx
-      push eax
-      ;"[]"
-      pop ebx
-      pop eax
-      add eax, ebx
-      push eax
-      push 10
-      ;'='
-      pop ebx
-      pop eax
-      mov [eax], ebx
-      push [eax]
-      pop edi
-      ;";"
-      lea eax, x
-      push eax
-      push 1
-      push 8
-      ;"*"
-      pop ebx
-      pop eax
-      imul eax, ebx
-      push eax
-      ;"[]"
-      pop ebx
-      pop eax
-      add eax, ebx
-      push eax
-      push 1
-      push 4
-      ;"*"
-      pop ebx
-      pop eax
-      imul eax, ebx
-      push eax
-      ;"[]"
-      pop ebx
-      pop eax
-      add eax, ebx
-      push eax
-      push 11
-      ;'='
-      pop ebx
-      pop eax
-      mov [eax], ebx
-      push [eax]
-      pop edi
-      ;";"
-      lea eax, x2
-      push eax
+      push 40
       push 2
-      push 12
       ;"*"
-      pop ebx
       pop eax
+      pop ebx
       imul eax, ebx
       push eax
-      ;"[]"
-      pop ebx
+      lea eax, arr2
+      push eax
+      ;"+"
       pop eax
+      pop ebx
       add eax, ebx
       push eax
-      push 1
       push 4
-      ;"*"
-      pop ebx
-      pop eax
-      imul eax, ebx
-      push eax
-      ;"[]"
-      pop ebx
-      pop eax
-      add eax, ebx
-      push eax
-      push 21
-      ;'='
-      pop ebx
-      pop eax
-      mov [eax], ebx
-      push [eax]
-      pop edi
-      ;";"
-      lea eax, x2
-      push eax
-      push 1
-      push 12
-      ;"*"
-      pop ebx
-      pop eax
-      imul eax, ebx
-      push eax
-      ;"[]"
-      pop ebx
-      pop eax
-      add eax, ebx
-      push eax
       push 2
-      push 4
       ;"*"
-      pop ebx
       pop eax
+      pop ebx
       imul eax, ebx
       push eax
-      ;"[]"
-      pop ebx
+      push x
+      ;"+"
       pop eax
+      pop ebx
       add eax, ebx
       push eax
-      push 12
-      ;'='
-      pop ebx
-      pop eax
-      mov [eax], ebx
-      push [eax]
-      pop edi
-      ;";"
-      lea eax, x2
-      push eax
-      push 2
-      push 12
-      ;"*"
-      pop ebx
-      pop eax
-      imul eax, ebx
-      push eax
-      ;"[]"
-      pop ebx
-      pop eax
-      add eax, ebx
-      push eax
-      push 3
-      push 4
-      ;"*"
-      pop ebx
-      pop eax
-      imul eax, ebx
-      push eax
-      ;"[]"
-      pop ebx
-      pop eax
-      add eax, ebx
-      push eax
-      push 23
-      ;'='
-      pop ebx
-      pop eax
-      mov [eax], ebx
-      push [eax]
-      pop edi
-      ;";"
-      lea eax, x2
-      push eax
-      push 3
-      push 12
-      ;"*"
-      pop ebx
-      pop eax
-      imul eax, ebx
-      push eax
-      ;"[]"
-      pop ebx
-      pop eax
-      add eax, ebx
-      push eax
-      push 2
-      push 4
-      ;"*"
-      pop ebx
-      pop eax
-      imul eax, ebx
-      push eax
-      ;"[]"
-      pop ebx
-      pop eax
-      add eax, ebx
-      push eax
-      push 32
-      ;'='
-      pop ebx
-      pop eax
-      mov [eax], ebx
-      push [eax]
-      pop edi
-      ;";"
-      lea eax, x2
-      push eax
-      push 3
-      push 12
-      ;"*"
-      pop ebx
-      pop eax
-      imul eax, ebx
-      push eax
-      ;"[]"
-      pop ebx
-      pop eax
-      add eax, ebx
-      push eax
-      push 3
-      push 4
-      ;"*"
-      pop ebx
-      pop eax
-      imul eax, ebx
-      push eax
-      ;"[]"
-      pop ebx
-      pop eax
-      add eax, ebx
-      push eax
-      push 33
-      ;'='
-      pop ebx
-      pop eax
-      mov [eax], ebx
-      push [eax]
-      pop edi
-      ;";"
-      lea eax, x2
-      push eax
-      push 2
-      push 12
-      ;"*"
-      pop ebx
-      pop eax
-      imul eax, ebx
-      push eax
-      ;"[]"
-      pop ebx
-      pop eax
-      add eax, ebx
-      push eax
-      push 0
-      push 4
-      ;"*"
-      pop ebx
-      pop eax
-      imul eax, ebx
-      push eax
-      ;"[]"
-      pop ebx
-      pop eax
-      add eax, ebx
-      push eax
-      push 20
-      ;'='
-      pop ebx
-      pop eax
-      mov [eax], ebx
-      push [eax]
-      pop edi
-      ;";"
-      lea eax, x3
-      push eax
-      push 0
-      push 4
-      ;"*"
-      pop ebx
-      pop eax
-      imul eax, ebx
-      push eax
-      ;"[]"
-      pop ebx
-      pop eax
-      add eax, ebx
-      push eax
-      push 1
-      push 8
-      ;"*"
-      pop ebx
-      pop eax
-      imul eax, ebx
-      push eax
-      ;"[]"
-      pop ebx
-      pop eax
-      add eax, ebx
-      push eax
-      push 2
-      push 12
-      ;"*"
-      pop ebx
-      pop eax
-      imul eax, ebx
-      push eax
-      ;"[]"
-      pop ebx
-      pop eax
-      add eax, ebx
-      push eax
-      push 3
-      push 4
-      ;"*"
-      pop ebx
-      pop eax
-      imul eax, ebx
-      push eax
-      ;"[]"
-      pop ebx
-      pop eax
-      add eax, ebx
-      push eax
-      push 123
-      ;'='
-      pop ebx
-      pop eax
-      mov [eax], ebx
-      push [eax]
-      pop edi
-      ;";"
-      lea eax, x3
-      push eax
-      push 0
-      push 4
-      ;"*"
-      pop ebx
-      pop eax
-      imul eax, ebx
-      push eax
-      ;"[]"
-      pop ebx
-      pop eax
-      add eax, ebx
-      push eax
-      push 0
-      push 8
-      ;"*"
-      pop ebx
-      pop eax
-      imul eax, ebx
-      push eax
-      ;"[]"
-      pop ebx
-      pop eax
-      add eax, ebx
-      push eax
-      push 0
-      push 12
-      ;"*"
-      pop ebx
-      pop eax
-      imul eax, ebx
-      push eax
-      ;"[]"
-      pop ebx
-      pop eax
-      add eax, ebx
-      push eax
-      push 3
-      push 4
-      ;"*"
-      pop ebx
-      pop eax
-      imul eax, ebx
-      push eax
-      ;"[]"
-      pop ebx
-      pop eax
-      add eax, ebx
-      push eax
-      push 3
-      ;'='
-      pop ebx
-      pop eax
-      mov [eax], ebx
-      push [eax]
-      pop edi
-      ;";"
-      lea eax, x3
-      push eax
-      push 0
-      push 4
-      ;"*"
-      pop ebx
-      pop eax
-      imul eax, ebx
-      push eax
-      ;"[]"
-      pop ebx
-      pop eax
-      add eax, ebx
-      push eax
-      push 0
-      push 8
-      ;"*"
-      pop ebx
-      pop eax
-      imul eax, ebx
-      push eax
-      ;"[]"
-      pop ebx
-      pop eax
-      add eax, ebx
-      push eax
-      push 0
-      push 12
-      ;"*"
-      pop ebx
-      pop eax
-      imul eax, ebx
-      push eax
-      ;"[]"
-      pop ebx
-      pop eax
-      add eax, ebx
-      push eax
-      push 0
-      push 4
-      ;"*"
-      pop ebx
-      pop eax
-      imul eax, ebx
-      push eax
-      ;"[]"
-      pop ebx
-      pop eax
-      add eax, ebx
-      push eax
-      push 0
-      ;'='
-      pop ebx
-      pop eax
-      mov [eax], ebx
-      push [eax]
-      pop edi
-      ;";"
-      lea eax, x3
-      push eax
-      push 0
-      push 4
-      ;"*"
-      pop ebx
-      pop eax
-      imul eax, ebx
-      push eax
-      ;"[]"
-      pop ebx
-      pop eax
-      add eax, ebx
-      push eax
-      push 0
-      push 8
-      ;"*"
-      pop ebx
-      pop eax
-      imul eax, ebx
-      push eax
-      ;"[]"
-      pop ebx
-      pop eax
-      add eax, ebx
-      push eax
-      push 1
-      push 12
-      ;"*"
-      pop ebx
-      pop eax
-      imul eax, ebx
-      push eax
-      ;"[]"
-      pop ebx
-      pop eax
-      add eax, ebx
-      push eax
-      push 1
-      push 4
-      ;"*"
-      pop ebx
-      pop eax
-      imul eax, ebx
-      push eax
-      ;"[]"
-      pop ebx
-      pop eax
-      add eax, ebx
-      push eax
-      push 11
-      ;'='
-      pop ebx
-      pop eax
-      mov [eax], ebx
-      push [eax]
-      pop edi
-      ;";"
-      lea eax, x3
-      push eax
-      push 0
-      push 4
-      ;"*"
-      pop ebx
-      pop eax
-      imul eax, ebx
-      push eax
-      ;"[]"
-      pop ebx
-      pop eax
-      add eax, ebx
-      push eax
-      push 1
-      push 8
-      ;"*"
-      pop ebx
-      pop eax
-      imul eax, ebx
-      push eax
-      ;"[]"
-      pop ebx
-      pop eax
-      add eax, ebx
-      push eax
-      push 2
-      push 12
-      ;"*"
-      pop ebx
-      pop eax
-      imul eax, ebx
-      push eax
-      ;"[]"
-      pop ebx
-      pop eax
-      add eax, ebx
-      push eax
-      push 2
-      push 4
-      ;"*"
-      pop ebx
-      pop eax
-      imul eax, ebx
-      push eax
-      ;"[]"
-      pop ebx
-      pop eax
-      add eax, ebx
-      push eax
-      push 122
-      ;'='
-      pop ebx
-      pop eax
-      mov [eax], ebx
-      push [eax]
-      pop edi
-      ;";"
-      lea eax, x
-      push eax
-      push 0
-      push 8
-      ;"*"
-      pop ebx
-      pop eax
-      imul eax, ebx
-      push eax
-      ;"[]"
-      pop ebx
-      pop eax
-      add eax, ebx
-      push eax
-      push 0
-      push 4
-      ;"*"
-      pop ebx
-      pop eax
-      imul eax, ebx
-      push eax
-      ;"[]"
-      pop ebx
-      pop eax
-      add eax, ebx
-      push [eax]
       push offset str1
       lea eax, printf
       push eax
@@ -690,32 +64,33 @@
       push edi
       pop edi
       ;";"
-      lea eax, x
-      push eax
-      push 0
-      push 8
-      ;"*"
-      pop ebx
-      pop eax
-      imul eax, ebx
-      push eax
-      ;"[]"
-      pop ebx
-      pop eax
-      add eax, ebx
-      push eax
-      push 1
       push 4
+      push 2
       ;"*"
-      pop ebx
       pop eax
+      pop ebx
       imul eax, ebx
       push eax
-      ;"[]"
-      pop ebx
+      lea eax, arr2
+      push eax
+      ;"+"
       pop eax
+      pop ebx
       add eax, ebx
-      push [eax]
+      push eax
+      push 4
+      push 2
+      ;"*"
+      pop eax
+      pop ebx
+      imul eax, ebx
+      push eax
+      push x
+      ;"+"
+      pop eax
+      pop ebx
+      add eax, ebx
+      push eax
       push offset str2
       lea eax, printf
       push eax
@@ -724,32 +99,45 @@
       push edi
       pop edi
       ;";"
+      lea eax, arr
+      push eax
       lea eax, x
       push eax
-      push 1
-      push 8
-      ;"*"
-      pop ebx
+      ;'='
       pop eax
-      imul eax, ebx
-      push eax
-      ;"[]"
       pop ebx
-      pop eax
-      add eax, ebx
-      push eax
-      push 0
-      push 4
-      ;"*"
-      pop ebx
-      pop eax
-      imul eax, ebx
-      push eax
-      ;"[]"
-      pop ebx
-      pop eax
-      add eax, ebx
+      mov [eax], ebx
       push [eax]
+      pop edi
+      ;";"
+      push 0
+      lea eax, arr
+      push eax
+      ;'='
+      pop eax
+      pop ebx
+      mov [eax], ebx
+      push [eax]
+      pop edi
+      ;";"
+      push 1
+      push x
+      ;'='
+      pop eax
+      pop ebx
+      mov [eax], ebx
+      push [eax]
+      pop edi
+      ;";"
+      push x
+      pop eax
+      mov eax, [eax]
+      push eax
+      lea eax, arr
+      push eax
+      pop eax
+      mov eax, [eax]
+      push eax
       push offset str3
       lea eax, printf
       push eax
@@ -758,32 +146,72 @@
       push edi
       pop edi
       ;";"
+      push 4
+      push 1
+      ;"*"
+      pop eax
+      pop ebx
+      imul eax, ebx
+      push eax
+      push x
+      ;"+"
+      pop eax
+      pop ebx
+      add eax, ebx
+      push eax
+      pop edi
+      push 4
+      push 1
+      ;"*"
+      pop eax
+      pop ebx
+      imul eax, ebx
+      push eax
+      push x
+      ;"+"
+      pop eax
+      pop ebx
+      add eax, ebx
+      push eax
       lea eax, x
       push eax
-      push 1
-      push 8
-      ;"*"
-      pop ebx
+      ;'='
       pop eax
-      imul eax, ebx
-      push eax
-      ;"[]"
       pop ebx
-      pop eax
-      add eax, ebx
-      push eax
-      push 1
-      push 4
-      ;"*"
-      pop ebx
-      pop eax
-      imul eax, ebx
-      push eax
-      ;"[]"
-      pop ebx
-      pop eax
-      add eax, ebx
+      mov [eax], ebx
       push [eax]
+      pop edi
+      ;";"
+      push 2
+      push x
+      ;'='
+      pop eax
+      pop ebx
+      mov [eax], ebx
+      push [eax]
+      pop edi
+      ;";"
+      push x
+      pop eax
+      mov eax, [eax]
+      push eax
+      push 4
+      push 1
+      ;"*"
+      pop eax
+      pop ebx
+      imul eax, ebx
+      push eax
+      lea eax, arr
+      push eax
+      ;"+"
+      pop eax
+      pop ebx
+      add eax, ebx
+      push eax
+      pop eax
+      mov eax, [eax]
+      push eax
       push offset str4
       lea eax, printf
       push eax
@@ -792,32 +220,94 @@
       push edi
       pop edi
       ;";"
-      lea eax, x2
-      push eax
-      push 2
-      push 12
-      ;"*"
-      pop ebx
-      pop eax
-      imul eax, ebx
-      push eax
-      ;"[]"
-      pop ebx
-      pop eax
-      add eax, ebx
-      push eax
-      push 1
       push 4
+      push 2
       ;"*"
-      pop ebx
       pop eax
+      pop ebx
       imul eax, ebx
       push eax
-      ;"[]"
-      pop ebx
+      push x
+      ;"+"
       pop eax
+      pop ebx
       add eax, ebx
+      push eax
+      lea eax, x
+      push eax
+      ;'='
+      pop eax
+      pop ebx
+      mov [eax], ebx
       push [eax]
+      pop edi
+      ;";"
+      push 4
+      push 1
+      ;"*"
+      pop eax
+      pop ebx
+      imul eax, ebx
+      push eax
+      push x
+      ;"-"
+      pop eax
+      pop ebx
+      sub eax, ebx
+      push eax
+      pop edi
+      push 4
+      push 1
+      ;"*"
+      pop eax
+      pop ebx
+      imul eax, ebx
+      push eax
+      push x
+      ;"-"
+      pop eax
+      pop ebx
+      sub eax, ebx
+      push eax
+      lea eax, x
+      push eax
+      ;'='
+      pop eax
+      pop ebx
+      mov [eax], ebx
+      push [eax]
+      pop edi
+      ;";"
+      push 3
+      push x
+      ;'='
+      pop eax
+      pop ebx
+      mov [eax], ebx
+      push [eax]
+      pop edi
+      ;";"
+      push x
+      pop eax
+      mov eax, [eax]
+      push eax
+      push 4
+      push 2
+      ;"*"
+      pop eax
+      pop ebx
+      imul eax, ebx
+      push eax
+      lea eax, arr
+      push eax
+      ;"+"
+      pop eax
+      pop ebx
+      add eax, ebx
+      push eax
+      pop eax
+      mov eax, [eax]
+      push eax
       push offset str5
       lea eax, printf
       push eax
@@ -826,32 +316,60 @@
       push edi
       pop edi
       ;";"
-      lea eax, x2
-      push eax
-      push 1
-      push 12
-      ;"*"
-      pop ebx
-      pop eax
-      imul eax, ebx
-      push eax
-      ;"[]"
-      pop ebx
-      pop eax
-      add eax, ebx
-      push eax
-      push 2
       push 4
+      push 4
+      push 1
       ;"*"
-      pop ebx
       pop eax
+      pop ebx
       imul eax, ebx
       push eax
-      ;"[]"
-      pop ebx
+      push x
+      ;"+"
       pop eax
+      pop ebx
       add eax, ebx
+      push eax
+      ;'='
+      pop eax
+      pop ebx
+      mov [eax], ebx
       push [eax]
+      pop edi
+      ;";"
+      push 4
+      push 1
+      ;"*"
+      pop eax
+      pop ebx
+      imul eax, ebx
+      push eax
+      push x
+      ;"+"
+      pop eax
+      pop ebx
+      add eax, ebx
+      push eax
+      pop eax
+      mov eax, [eax]
+      push eax
+      push 4
+      push 3
+      ;"*"
+      pop eax
+      pop ebx
+      imul eax, ebx
+      push eax
+      lea eax, arr
+      push eax
+      ;"+"
+      pop eax
+      pop ebx
+      add eax, ebx
+      push eax
+      pop eax
+      mov eax, [eax]
+      push eax
       push offset str6
       lea eax, printf
       push eax
@@ -860,425 +378,62 @@
       push edi
       pop edi
       ;";"
-      lea eax, x2
-      push eax
-      push 2
-      push 12
-      ;"*"
-      pop ebx
-      pop eax
-      imul eax, ebx
-      push eax
-      ;"[]"
-      pop ebx
-      pop eax
-      add eax, ebx
-      push eax
-      push 3
+      push 5
+      push 4
       push 4
       ;"*"
-      pop ebx
       pop eax
+      pop ebx
       imul eax, ebx
       push eax
-      ;"[]"
-      pop ebx
+      lea eax, arr
+      push eax
+      ;"+"
       pop eax
+      pop ebx
       add eax, ebx
+      push eax
+      ;'='
+      pop eax
+      pop ebx
+      mov [eax], ebx
       push [eax]
+      pop edi
+      ;";"
+      push 4
+      push 2
+      ;"*"
+      pop eax
+      pop ebx
+      imul eax, ebx
+      push eax
+      push x
+      ;"+"
+      pop eax
+      pop ebx
+      add eax, ebx
+      push eax
+      pop eax
+      mov eax, [eax]
+      push eax
+      push 4
+      push 4
+      ;"*"
+      pop eax
+      pop ebx
+      imul eax, ebx
+      push eax
+      lea eax, arr
+      push eax
+      ;"+"
+      pop eax
+      pop ebx
+      add eax, ebx
+      push eax
+      pop eax
+      mov eax, [eax]
+      push eax
       push offset str7
-      lea eax, printf
-      push eax
-      pop eax
-      call eax
-      push edi
-      pop edi
-      ;";"
-      lea eax, x2
-      push eax
-      push 3
-      push 12
-      ;"*"
-      pop ebx
-      pop eax
-      imul eax, ebx
-      push eax
-      ;"[]"
-      pop ebx
-      pop eax
-      add eax, ebx
-      push eax
-      push 2
-      push 4
-      ;"*"
-      pop ebx
-      pop eax
-      imul eax, ebx
-      push eax
-      ;"[]"
-      pop ebx
-      pop eax
-      add eax, ebx
-      push [eax]
-      push offset str8
-      lea eax, printf
-      push eax
-      pop eax
-      call eax
-      push edi
-      pop edi
-      ;";"
-      lea eax, x2
-      push eax
-      push 3
-      push 12
-      ;"*"
-      pop ebx
-      pop eax
-      imul eax, ebx
-      push eax
-      ;"[]"
-      pop ebx
-      pop eax
-      add eax, ebx
-      push eax
-      push 3
-      push 4
-      ;"*"
-      pop ebx
-      pop eax
-      imul eax, ebx
-      push eax
-      ;"[]"
-      pop ebx
-      pop eax
-      add eax, ebx
-      push [eax]
-      push offset str9
-      lea eax, printf
-      push eax
-      pop eax
-      call eax
-      push edi
-      pop edi
-      ;";"
-      lea eax, x2
-      push eax
-      push 2
-      push 12
-      ;"*"
-      pop ebx
-      pop eax
-      imul eax, ebx
-      push eax
-      ;"[]"
-      pop ebx
-      pop eax
-      add eax, ebx
-      push eax
-      push 0
-      push 4
-      ;"*"
-      pop ebx
-      pop eax
-      imul eax, ebx
-      push eax
-      ;"[]"
-      pop ebx
-      pop eax
-      add eax, ebx
-      push [eax]
-      push offset str10
-      lea eax, printf
-      push eax
-      pop eax
-      call eax
-      push edi
-      pop edi
-      ;";"
-      lea eax, x3
-      push eax
-      push 0
-      push 4
-      ;"*"
-      pop ebx
-      pop eax
-      imul eax, ebx
-      push eax
-      ;"[]"
-      pop ebx
-      pop eax
-      add eax, ebx
-      push eax
-      push 1
-      push 8
-      ;"*"
-      pop ebx
-      pop eax
-      imul eax, ebx
-      push eax
-      ;"[]"
-      pop ebx
-      pop eax
-      add eax, ebx
-      push eax
-      push 2
-      push 12
-      ;"*"
-      pop ebx
-      pop eax
-      imul eax, ebx
-      push eax
-      ;"[]"
-      pop ebx
-      pop eax
-      add eax, ebx
-      push eax
-      push 3
-      push 4
-      ;"*"
-      pop ebx
-      pop eax
-      imul eax, ebx
-      push eax
-      ;"[]"
-      pop ebx
-      pop eax
-      add eax, ebx
-      push [eax]
-      push offset str11
-      lea eax, printf
-      push eax
-      pop eax
-      call eax
-      push edi
-      pop edi
-      ;";"
-      lea eax, x3
-      push eax
-      push 0
-      push 4
-      ;"*"
-      pop ebx
-      pop eax
-      imul eax, ebx
-      push eax
-      ;"[]"
-      pop ebx
-      pop eax
-      add eax, ebx
-      push eax
-      push 0
-      push 8
-      ;"*"
-      pop ebx
-      pop eax
-      imul eax, ebx
-      push eax
-      ;"[]"
-      pop ebx
-      pop eax
-      add eax, ebx
-      push eax
-      push 0
-      push 12
-      ;"*"
-      pop ebx
-      pop eax
-      imul eax, ebx
-      push eax
-      ;"[]"
-      pop ebx
-      pop eax
-      add eax, ebx
-      push eax
-      push 3
-      push 4
-      ;"*"
-      pop ebx
-      pop eax
-      imul eax, ebx
-      push eax
-      ;"[]"
-      pop ebx
-      pop eax
-      add eax, ebx
-      push [eax]
-      push offset str12
-      lea eax, printf
-      push eax
-      pop eax
-      call eax
-      push edi
-      pop edi
-      ;";"
-      lea eax, x3
-      push eax
-      push 0
-      push 4
-      ;"*"
-      pop ebx
-      pop eax
-      imul eax, ebx
-      push eax
-      ;"[]"
-      pop ebx
-      pop eax
-      add eax, ebx
-      push eax
-      push 0
-      push 8
-      ;"*"
-      pop ebx
-      pop eax
-      imul eax, ebx
-      push eax
-      ;"[]"
-      pop ebx
-      pop eax
-      add eax, ebx
-      push eax
-      push 0
-      push 12
-      ;"*"
-      pop ebx
-      pop eax
-      imul eax, ebx
-      push eax
-      ;"[]"
-      pop ebx
-      pop eax
-      add eax, ebx
-      push eax
-      push 0
-      push 4
-      ;"*"
-      pop ebx
-      pop eax
-      imul eax, ebx
-      push eax
-      ;"[]"
-      pop ebx
-      pop eax
-      add eax, ebx
-      push [eax]
-      push offset str13
-      lea eax, printf
-      push eax
-      pop eax
-      call eax
-      push edi
-      pop edi
-      ;";"
-      lea eax, x3
-      push eax
-      push 0
-      push 4
-      ;"*"
-      pop ebx
-      pop eax
-      imul eax, ebx
-      push eax
-      ;"[]"
-      pop ebx
-      pop eax
-      add eax, ebx
-      push eax
-      push 0
-      push 8
-      ;"*"
-      pop ebx
-      pop eax
-      imul eax, ebx
-      push eax
-      ;"[]"
-      pop ebx
-      pop eax
-      add eax, ebx
-      push eax
-      push 1
-      push 12
-      ;"*"
-      pop ebx
-      pop eax
-      imul eax, ebx
-      push eax
-      ;"[]"
-      pop ebx
-      pop eax
-      add eax, ebx
-      push eax
-      push 1
-      push 4
-      ;"*"
-      pop ebx
-      pop eax
-      imul eax, ebx
-      push eax
-      ;"[]"
-      pop ebx
-      pop eax
-      add eax, ebx
-      push [eax]
-      push offset str14
-      lea eax, printf
-      push eax
-      pop eax
-      call eax
-      push edi
-      pop edi
-      ;";"
-      lea eax, x3
-      push eax
-      push 0
-      push 4
-      ;"*"
-      pop ebx
-      pop eax
-      imul eax, ebx
-      push eax
-      ;"[]"
-      pop ebx
-      pop eax
-      add eax, ebx
-      push eax
-      push 1
-      push 8
-      ;"*"
-      pop ebx
-      pop eax
-      imul eax, ebx
-      push eax
-      ;"[]"
-      pop ebx
-      pop eax
-      add eax, ebx
-      push eax
-      push 2
-      push 12
-      ;"*"
-      pop ebx
-      pop eax
-      imul eax, ebx
-      push eax
-      ;"[]"
-      pop ebx
-      pop eax
-      add eax, ebx
-      push eax
-      push 2
-      push 4
-      ;"*"
-      pop ebx
-      pop eax
-      imul eax, ebx
-      push eax
-      ;"[]"
-      pop ebx
-      pop eax
-      add eax, ebx
-      push [eax]
-      push offset str15
       lea eax, printf
       push eax
       pop eax

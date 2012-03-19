@@ -83,8 +83,8 @@ namespace Compiler
 
 		public static void GeneratePopResult(CodeGen.Code code)
 		{
-			code.AddComand("pop", "ebx");
-			code.AddComand("pop", "eax"); 
+			code.AddComand("pop", "eax");
+			code.AddComand("pop", "ebx"); 
 		}
 
 	}
@@ -133,6 +133,8 @@ namespace Compiler
 				e.Data["delayed"] = true;
 				throw e;
 			}
+
+			this.type = Symantic.GetTypeUnaryOper(operand.type, oper.type);
 		} 
 	}
 
@@ -241,8 +243,25 @@ namespace Compiler
 
 		public override void GenerateCode(CodeGen.Code code, bool address=false)
 		{
-			lnode.GenerateCode(code, address);
-			rnode.GenerateCode(code, address);
+			if ((lnode.getType() is SymTypePointer || lnode.getType() is SymTypeArray) 
+				&& !((rnode.getType() is SymTypePointer || rnode.getType()is SymTypeArray) && oper.type == Token.Type.OP_SUB))
+			{
+				int k_sz = rnode.getType().GetSize();
+				if (lnode.getType() is SymTypeArray && ((SymTypeArray)lnode.getType()).type is SymTypeArray)
+				{
+					k_sz *= ((SymTypeArray)lnode.getType()).GetSizeArray();
+				}
+				BinaryOper mul = new BinaryOper(new Token(Token.Type.OP_STAR));
+				mul.SetLeftOperand(rnode);
+				mul.SetRightOperand(new ConstExpr(new SymTypeInt(), k_sz.ToString()));
+				mul.GenerateCode(code, address);
+			}
+			else
+			{
+				rnode.GenerateCode(code, address);
+			}
+
+			lnode.GenerateCode(code, address && !(lnode.getType() is SymTypePointer));
 			code.AddComment("\"" + Token.type_to_terms[this.oper.type] + "\"");
 			SynExpr.GeneratePopResult(code);
 			
@@ -350,6 +369,7 @@ namespace Compiler
 				default:
 					throw new NotImplementedException();
 			}
+
 			code.AddComand("push", reg_res);
 		}
 
@@ -471,8 +491,8 @@ namespace Compiler
 				rnode = binop;
 			}
 
-			lnode.GenerateCode(code, true);
 			rnode.GenerateCode(code, false);
+			lnode.GenerateCode(code, true);
 			code.AddComment("'='");
 			SynExpr.GeneratePopResult(code);
 			code.AddComand("mov", "[eax]", "ebx");
@@ -582,15 +602,14 @@ namespace Compiler
 
 		public override void GenerateCode(CodeGen.Code code, bool address=false)
 		{
-			if (address)
-			{
-				code.AddComand("lea", "eax", var.name);
-				code.AddComand("push", "eax");
-			}
-			else
+			if (!address && !(var.type is SymTypeArray))
 			{
 				code.AddComand("push", var.name);
+				return;
 			}
+
+			code.AddComand("lea", "eax", var.name);
+			code.AddComand("push", "eax");
 		}
 
 		public override int ComputeConstIntValue()
@@ -639,11 +658,29 @@ namespace Compiler
 					return;
 				}
 
-				operand.GenerateCode(code, true);
+				operand.GenerateCode(code, address);
 			}
 			else
 			{
-				operand.GenerateCode(code, false);
+				if (operand.getType() is SymTypePointer)
+				{
+					operand.GenerateCode(code, false);
+				}
+				else 
+				{
+					operand.GenerateCode(code, address);
+				}
+				
+				if ((operand.getType() is SymTypeArray || operand.getType() is SymTypePointer) && address)
+				{
+					return;
+				}
+
+				if (!address && operand.getType() is SymTypeArray && ((SymTypeArray)operand.getType()).type is SymTypeArray && oper.type == Token.Type.OP_STAR)
+				{
+					return;
+				}
+
 				code.AddComand("pop", "eax");
 				switch (oper.type)
 				{
@@ -1013,13 +1050,25 @@ namespace Compiler
 
 		public override void GenerateCode(CodeGen.Code code, bool address=false)
 		{
-			parent.GenerateCode(code, true);
-			BinaryOper oper = new BinaryOper(new Token(Token.Type.OP_STAR));
-			int p = parent.getType().GetSize();
+			/*BinaryOper oper = new BinaryOper(new Token(Token.Type.OP_STAR));
+			int p = 0;
+			
+			if (parent.getType() is SymTypePointer)
+			{
+				p = ((SymTypePointer)parent.getType()).type.GetSize();
+				parent.GenerateCode(code, false);
+			}
+			else
+			{
+				p = parent.getType().GetSize();
+				parent.GenerateCode(code, true);
+			}
+
 			if (this.parent.getType() is SymTypeArray && ((SymTypeArray)this.parent.getType()).type is SymTypeArray)
 			{
 				p *= ((SymTypeArray)this.parent.getType()).GetSizeArray();
 			}
+
 			oper.SetLeftOperand(child);
 			oper.SetRightOperand(new ConstExpr(new SymTypeInt(), p.ToString()));
 			oper.GenerateCode(code);
@@ -1034,7 +1083,7 @@ namespace Compiler
 			else
 			{
 				code.AddComand("push", "[eax]");
-			}
+			}*/
 		}
 	}
 

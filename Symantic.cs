@@ -152,7 +152,8 @@
 
 					if (ltype is SymTypePointer)
 					{
-						if (rtype is SymTypeInt || rtype is SymTypeChar || rtype is SymTypeEnum || rtype is SymTypePointer || rtype is SymTypeFunc)
+						if (//rtype is SymTypeInt || rtype is SymTypeChar || rtype is SymTypeEnum || 
+							(rtype is SymTypePointer && ((SymTypePointer)rtype).type.Equals(((SymTypePointer)ltype).type)) || rtype is SymTypeFunc)
 						{
 							return true;
 						}
@@ -331,7 +332,7 @@
 						return new SymTypeDouble();
 					}
 
-					if (ltype is SymTypePointer)
+					if (ltype is SymTypePointer || ltype is SymTypeArray)
 					{
 						return ltype;
 					}
@@ -383,7 +384,7 @@
 				return new SymSuperType();
 			}
 
-			type = PerformType(type);
+			//type = PerformType(type);
 
 			switch (toper)
 			{
@@ -402,7 +403,14 @@
 					return type;
 
 				case Token.Type.OP_STAR:
-					return ((SymTypePointer)type).type;
+					if (type is SymTypePointer)
+					{
+						return ((SymTypePointer)type).type;
+					}
+					else
+					{
+						return ((SymTypeArray)type).type;
+					}
 
 				case Token.Type.OP_TILDE:
 					return type;

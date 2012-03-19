@@ -874,7 +874,7 @@ namespace Compiler
 
 		public override bool Compatible(SymType t)
 		{
-			return t is SymSuperType || t is SymTypeInt || t is SymTypeChar;
+			return t is SymSuperType || t is SymTypeInt || t is SymTypeChar || t is SymTypePointer;
 		}
 
 		public override int GetSize()
@@ -1263,7 +1263,7 @@ namespace Compiler
 
 		public override int GetSize()
 		{
-			return type.GetSize();
+			return 4;
 		}
 
 		public override void GenerateDeclarationCode(CodeGen.Code code)
