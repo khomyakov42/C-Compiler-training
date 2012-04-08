@@ -1,4 +1,14 @@
 bin/*
+
 obj/*
+
 Properties/*
-Compiler.csproj
+
+*.csproj
+*.user
+*.exe
+*.pdb
+*.cache
+*.txt
+masm/*
+*.pdf
