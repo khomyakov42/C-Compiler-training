@@ -133,7 +133,7 @@ namespace Compiler
 			this.line = line;
 			this.pos = pos;
 			this.type = type != Type.OPERATOR && type != Type.SEPARATOR ? type: (Type)Token.terms[val];
-			this.strval = val;
+			this.strval = val.Replace("\n", "\\n");
 		}
 
 		public Token() { pos = 1; line = 1; type = Type.NONE; strval = ""; }

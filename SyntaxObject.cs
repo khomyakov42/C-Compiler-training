@@ -1071,40 +1071,12 @@ namespace Compiler
 
 		public override void GenerateCode(CodeGen.Code code, bool address=false)
 		{
-			/*BinaryOper oper = new BinaryOper(new Token(Token.Type.OP_STAR));
-			int p = 0;
-			
-			if (parent.getType() is SymTypePointer)
-			{
-				p = ((SymTypePointer)parent.getType()).type.GetSize();
-				parent.GenerateCode(code, false);
-			}
-			else
-			{
-				p = parent.getType().GetSize();
-				parent.GenerateCode(code, true);
-			}
-
-			if (this.parent.getType() is SymTypeArray && ((SymTypeArray)this.parent.getType()).type is SymTypeArray)
-			{
-				p *= ((SymTypeArray)this.parent.getType()).GetSizeArray();
-			}
-
-			oper.SetLeftOperand(child);
-			oper.SetRightOperand(new ConstExpr(new SymTypeInt(), p.ToString()));
-			oper.GenerateCode(code);
-			code.AddComment("\"[]\"");
-			SynExpr.GeneratePopResult(code);
-			code.AddComand("add", "eax", "ebx");
-
-			if (address)
-			{
-				code.AddComand("push", "eax");
-			}
-			else
-			{
-				code.AddComand("push", "[eax]");
-			}*/
+			BinaryOper plus = new BinaryOper(new Token(Token.Type.OP_PLUS));
+			PrefixOper star = new PrefixOper(new Token(Token.Type.OP_STAR));
+			plus.SetLeftOperand(parent);
+			plus.SetRightOperand(child);
+			star.SetOperand(plus);
+			star.GenerateCode(code, address);
 		}
 	}
 
