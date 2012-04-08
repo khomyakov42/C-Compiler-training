@@ -635,7 +635,7 @@ namespace Compiler
 			}
 			else if (type is SymTypeArray)
 			{
-				code.AddLine(name + " " + type.GenerateDeclaratorCode(this) + " dup(\"" + ((ConstExpr)value.val).value + "\", 13, 10, 0)");
+				code.AddLine(name + " " + type.GenerateDeclaratorCode(this) + " dup(\"" + ((ConstExpr)value.val).value + "\", 0)");
 			}
 			else
 			{
@@ -661,6 +661,8 @@ namespace Compiler
 		public abstract string GenerateDeclaratorCode(SymVar var);
 
 		public abstract void GenerateDeclarationCode(CodeGen.Code code);
+
+		public bool Equels(Object obj, bool pr = true) { return false; }
 	}
 
 	class SymSuperType : SymType
@@ -981,7 +983,7 @@ namespace Compiler
 		{
 			if(obj is SymTypeFunc)
 			{
-				if (name != ((SymTypeFunc)obj).name || !this.type.Equals(((SymTypeFunc)obj).type))
+				if (!this.type.Equals(((SymTypeFunc)obj).type))
 					return false;
 
 				int i = 0, j = 0;
@@ -1274,6 +1276,10 @@ namespace Compiler
 		public override string GenerateDeclaratorCode(SymVar var)
 		{
 			return "DWORD";
+		}
+		public override bool Equals(object obj)
+		{
+			return obj is SymTypePointer && this.type.Equals(((SymTypePointer)obj).type);
 		}
 	}
 

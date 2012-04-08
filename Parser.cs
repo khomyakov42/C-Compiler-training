@@ -306,7 +306,7 @@ namespace Compiler
 					SymVarConst var = new SymVarConst(new Token(Token.Type.CONST_STRING, "str" + count_string));
 
 					SymTypeArray str = new SymTypeArray(tables.GetType("char"));
-					str.SetSize(new ConstExpr(tables.GetType("int"), "" + (t.strval.Length + 3)));
+					str.SetSize(new ConstExpr(tables.GetType("int"), "" + (t.strval.Length + 1)));
 					var.SetType(str);
 
 					res = new ConstString(var);

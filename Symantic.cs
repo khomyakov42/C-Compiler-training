@@ -152,8 +152,8 @@
 
 					if (ltype is SymTypePointer)
 					{
-						if (//rtype is SymTypeInt || rtype is SymTypeChar || rtype is SymTypeEnum || 
-							(rtype is SymTypePointer && ((SymTypePointer)rtype).type.Equals(((SymTypePointer)ltype).type)) || rtype is SymTypeFunc)
+						if ((rtype is SymTypePointer && ((SymTypePointer)rtype).type.Equals(((SymTypePointer)ltype).type)) || 
+							(rtype is SymTypeFunc && ((SymTypePointer)ltype).type.Equals(rtype)))
 						{
 							return true;
 						}
@@ -403,14 +403,11 @@
 					return type;
 
 				case Token.Type.OP_STAR:
-					if (type is SymTypePointer)
+					if (type is SymRefType && !(type is SymTypeFunc))
 					{
-						return ((SymTypePointer)type).type;
+						return ((SymRefType)type).type;
 					}
-					else
-					{
-						return ((SymTypeArray)type).type;
-					}
+					break;
 
 				case Token.Type.OP_TILDE:
 					return type;

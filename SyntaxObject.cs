@@ -670,13 +670,21 @@ namespace Compiler
 				{
 					operand.GenerateCode(code, address);
 				}
-				
-				if ((operand.getType() is SymTypeArray || operand.getType() is SymTypePointer) && address)
+
+				if (operand.getType() is SymRefType && address)
+				{
+					return;
+				}
+				/*if ((operand.getType() is SymTypeArray || operand.getType() is SymTypePointer) && address)
 				{
 					return;
 				}
 
-				if (!address && operand.getType() is SymTypeArray && ((SymTypeArray)operand.getType()).type is SymTypeArray && oper.type == Token.Type.OP_STAR)
+				/*if (!address && operand.getType() is SymTypeArray && ((SymTypeArray)operand.getType()).type is SymTypeArray && oper.type == Token.Type.OP_STAR)
+				{
+					return;
+				}*/
+				if (!address && operand.getType() is SymRefType && ((SymRefType)operand.getType()).type is SymTypeArray && oper.type == Token.Type.OP_STAR)
 				{
 					return;
 				}
@@ -812,6 +820,13 @@ namespace Compiler
 
 		public override void GenerateCode(CodeGen.Code code, bool address=false)
 		{
+			if (operand.type is SymTypePointer && ((SymTypePointer)operand.type).type is SymTypeFunc)
+			{
+				PrefixOper pr = new PrefixOper(new Token(Token.Type.OP_STAR));
+				pr.SetOperand(operand);
+				this.operand = pr;
+			}
+
 			for (int i = args.Count - 1; i >= 0; i--)
 			{
 				args[i].GenerateCode(code);
@@ -820,8 +835,14 @@ namespace Compiler
 			code.AddComand("pop", "eax");
 			code.AddComand("call", "eax");
 
+
+			for (int i = 0; i < args.Count; i++)
+			{
+				code.AddComand("pop", "edi");
+			}
+
 			bool ret = false;
-			if (!(((SymTypeFunc)operand.type).type is SymTypeVoid))
+			if (!(((SymRefType)operand.type).type is SymTypeVoid))
 			{
 				code.AddComand("pop", "eax");
 				ret = true;
