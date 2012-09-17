@@ -1,6 +1,0 @@
-struct{
-	int f(){
-		return 5;	
-	}
-	int x;
-} Z;

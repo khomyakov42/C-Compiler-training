@@ -9,7 +9,7 @@ void up(){
 }
 
 void main(){
-	struct {} *(*Z)[];
+	struct {int x;} *(*Z)[20];
 	int x = 0;
 	x = f();
 	up();

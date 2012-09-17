@@ -1,6 +1,0 @@
-int f(){
-	int ff(){
-		return 42;
-	}
-	return ff() * 10;
-}

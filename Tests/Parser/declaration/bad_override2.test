@@ -3,4 +3,5 @@ int f(){
 }
 
 struct T{
+   int x;
 } f;

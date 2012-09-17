@@ -1,28 +1,14 @@
-<--------TABLES-------->
-<---TABLE--->
-VARS::
-
-x1   POINTER TO int   
-
-
-x2   POINTER TO POINTER TO int   
-
-
-x3   ARRAY () OF int   
-
-
-x4   ARRAY (10) OF ARRAY () OF ARRAY (20) OF int   
-
-
-x5   ARRAY (10) OF POINTER TO int   
-
-
-TYPES::
-char char
-
-double double
-
-int int
-
-void void
+<<<table #1>>>
+<tags>
+<types>
+int
+char
+double
+void
+<vars>
+var x1 type pointer to int
+var x2 type pointer to pointer to int
+var x3 type array size 100 of int
+var x4 type array size 10 of array size 12 of array size 20 of int
+var x5 type array size 10 of pointer to int
 

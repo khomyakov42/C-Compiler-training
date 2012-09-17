@@ -1,42 +1,24 @@
-<--------TABLES-------->
-<---TABLE--->
-VARS::
-
-x   POINTER TO FUNC ()  RETURNED int   
-
-
-ms   STRUCT $UNNAMED${
-vars::
-
-x   int   
-
-
-types::
-}   
-
-
-asd   POINTER TO ARRAY (100) OF POINTER TO int   
-
-
-TYPES::
-char char
-
-double double
-
-int int
-
-void void
-
-INT POINTER TO ARRAY (100) OF POINTER TO int
-
-MYSTRACT STRUCT $UNNAMED${
-vars::
-
-x   int   
-
-
-types::
-}
-
-F_INT POINTER TO FUNC ()  RETURNED int
+<<<table #1>>>
+<tags>
+<types>
+int
+char
+double
+void
+typedef <INT> <pointer to array size 100 of pointer to int
+typedef <MYSTRACT> < record
+                       <<<table #2>>>
+                       <tags>
+                       <types>
+                       <vars>
+                       var x type int
+                     endrecord
+typedef <F_INT> <pointer to function (){
+} returned int
+<vars>
+var x type pointer to function (){
+} returned int
+var ms type  record
+             endrecord
+var asd type pointer to array size 100 of pointer to int
 

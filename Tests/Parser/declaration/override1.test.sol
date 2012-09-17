@@ -1,29 +1,22 @@
-<--------TABLES-------->
-<---TABLE--->
-VARS::
+<<<table #1>>>
+<tags>
+<types>
+int
+char
+double
+void
+<vars>
+var A type char
+var main type function (){
+                 <<<table #3>>>
+                 <tags>
+                 <types>
+                 <vars>
+                 var A type int
+                 ÀÄÄ{block}
+                    ÀÄÄ{=}
+                       ÃÄÄ{A}
+                       ÀÄÄ{5}
 
-A   char   
+} returned int
 
-
-main   FUNC () { BLOCK
-     "="
-          A
-          5 } RETURNED int   
-
-
-TYPES::
-char char
-
-double double
-
-int int
-
-void void
-
-<---TABLE--->
-VARS::
-
-A   int   
-
-
-TYPES::

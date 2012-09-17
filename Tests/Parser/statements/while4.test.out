@@ -1,8 +1,7 @@
-
-WHILE
-     list
-          ">"
-               1
-               2
-     BLOCK
+юдд''
+   юдд'while'
+      цдд'>'
+      Ё  цдд'1'
+      Ё  юдд'2'
+      юдд'empty block'
 

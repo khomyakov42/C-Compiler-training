@@ -1,6 +1,0 @@
-enum T {};
-enum T1 {A, B, C};
-enum T2 {A = 0, B, C = 10};
-
-typedef T2 tt;
-tt x;

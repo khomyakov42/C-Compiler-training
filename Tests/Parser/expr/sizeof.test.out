@@ -1,12 +1,8 @@
-
-list
-     "sizeof@"
-          int
-list
-     "sizeof@"
-          x
-list
-     "sizeof@"
-          list
-               x
+юдд''
+   цдд'sizeof@'
+   Ё  юдд'int'
+   цдд'sizeof@'
+   Ё  юдд'x'
+   юдд'sizeof@'
+      юдд'x'
 

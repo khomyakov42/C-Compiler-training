@@ -1,22 +1,13 @@
-
-list
-     "CAST"
-          int
-          x
-list
-     "CAST"
-          int
-          "CAST"
-               char
-               x
-list
-     "!@"
-          "CAST"
-               int
-               x
-list
-     "CAST"
-          int
-          "++@"
-               x
+ÀÄÄ''
+   ÃÄÄ'cast(int)'
+   ³  ÀÄÄ'x'
+   ÃÄÄ'cast(int)'
+   ³  ÀÄÄ'cast(char)'
+   ³     ÀÄÄ'x'
+   ÃÄÄ'!@'
+   ³  ÀÄÄ'cast(int)'
+   ³     ÀÄÄ'x'
+   ÀÄÄ'cast(int)'
+      ÀÄÄ'++@'
+         ÀÄÄ'x'
 

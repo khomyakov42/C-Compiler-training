@@ -1,18 +1,11 @@
-<--------TABLES-------->
-<---TABLE--->
-VARS::
-
-A   int   
-
-
-TYPES::
-char char
-
-double double
-
-int int
-
-void void
-
-Ошибка синтаксиса в строке 2 позиции 6: переопределение "A"
+<<<table #1>>>
+<tags>
+<types>
+int
+char
+double
+void
+<vars>
+var A type int
+Семантическая ошибка в строке 2, позиции 6: переопределение A
 

@@ -1,8 +1,8 @@
 
 struct A{
 	struct B{
-		struct{} unnname;
+		struct{int x, y;} s;
 	} b;
-	B b2;
+	struct B b2;
 } a;
 

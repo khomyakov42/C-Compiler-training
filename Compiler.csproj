@@ -43,14 +43,19 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="CodeGen.cs" />
+    <Compile Include="Helpers.cs" />
+    <Compile Include="Logger.cs" />
     <Compile Include="Parser.cs" />
     <Compile Include="Scaner.cs" />
     <Compile Include="main.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Symantic.cs" />
+    <Compile Include="Symantic.old.cs" />
+    <Compile Include="Symbols.old.cs" />
     <Compile Include="Symbols.cs" />
-    <Compile Include="SyntaxObject.cs" />
+    <Compile Include="SymbolTables.cs" />
+    <Compile Include="SyntaxObjects.cs" />
+    <Compile Include="Token.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

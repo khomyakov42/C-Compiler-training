@@ -1,6 +1,0 @@
-
-struct{
-	int x;
-	char y;
-	double i, j, k;
-};

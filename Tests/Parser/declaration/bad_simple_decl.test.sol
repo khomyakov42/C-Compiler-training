@@ -1,15 +1,10 @@
-<--------TABLES-------->
-<---TABLE--->
-VARS::
-
-TYPES::
-char char
-
-double double
-
-int int
-
-void void
-
-Ошибка синтаксиса в строке 1 позиции 4: требуется идентификатор
+<<<table #1>>>
+<tags>
+<types>
+int
+char
+double
+void
+<vars>
+Ошибка синтаксиса в строке 1, позиции 5: требуется идентификатор
 

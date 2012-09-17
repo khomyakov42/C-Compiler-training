@@ -1,1287 +1,626 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Collections;
 using System.Linq;
 using System.Text;
 
 namespace Compiler
 {
-	
-	class SymTable
+	namespace Symbols
 	{
-		public class Exception : Compiler.Exception
+		class Exception : Compiler.Exception
 		{
-			public Exception(string s) : base(s) { }
+			public Exception(string s, int index, int line) : base("Семантическая ошибка", s, index, line) { }
+			public Exception(Syntax.Expression expr, string message)
+				: base("Семантическая ошибка", message, expr.GetIndex(), expr.GetLine()) { }
 		}
 
-		public SymTable parent = null;
-		public List<SymTable> children = new List<SymTable>();
-		public int pos = 0, depth = 0;
-		protected int count_unnamed_types = 0;
 
-
-		public Dictionary<string, SymVar> vars = new Dictionary<string, SymVar>();
-		public Dictionary<string, SymType> types = new Dictionary<string, SymType>();
-		public Dictionary<string, SymVar> consts = new Dictionary<string, SymVar>();
-
-		public SymTable(int pos = 0, int depth = 0)
+		abstract class Symbol
 		{
-			this.depth = depth;
-			this.pos = pos;
-		}
+			protected string name = "";
+			protected int index = -1 , line = -1;
 
-		public string GetUniquePrefix()
-		{
-			return depth + "_" + pos;
-		}
+			public Symbol() { }
 
-		public void AddConst(SymVar var)
-		{
-			if (consts.ContainsKey(var.name))
+			public Symbol(string name, int index, int line)
 			{
-				Symbol.Exception e = new Symbol.Exception("переопределение \"" + var.name + "\"", var.pos, var.line);
-				e.Data["delayed"] = true;
-				throw e;
-			}
-
-			var.pos_in_tables = new Pair<int, int>(this.pos, this.depth);
-			consts.Add(var.name, var);
-		}
-
-		public bool ContainsConst(string name)
-		{
-			return consts.ContainsKey(name);
-		}
-
-		public SymVar GetConst(string name)
-		{
-			return consts[name];
-		}
-
-		public void AddVar(SymVar var)
-		{
-			if (vars.ContainsKey(var.GetName()) || consts.ContainsKey(var.GetName()))
-			{
-				if (var.type is SymTypeFunc && var.Equals(vars[var.name]))
-				{
-					vars[var.name] = var;
-					return;
-				}
-				Symbol.Exception e = new Symbol.Exception("переопределение \"" + var.GetName() + "\"", var.token.pos, var.token.line);
-				e.Data["delayed"] = true;
-				throw e;
-			}
-			var.pos_in_tables = new Pair<int, int>(this.pos, this.depth);
-			vars.Add(var.GetName(), var);//qutim
-		}
-
-		public void AddType(SymType type)
-		{
-			if (type == null)
-			{
-				throw new SymTable.Exception("отсутствует спецификатор типа");
-			}
-
-			if (type.GetName() != Symbol.UNNAMED && types.ContainsKey(type.GetName()))
-			{
-				throw new SymTable.Exception("переопределение типа \"" + type.GetName() + "\"");
-			}
-
-			if (type.GetName() == Symbol.UNNAMED)
-			{
-				type.SetName(Symbol.UNNAMED + count_unnamed_types);
-				count_unnamed_types++;
-			}
-
-			type.pos_in_tables = new Pair<int, int>(this.pos, this.depth);
-			types.Add(type.GetName(), type);
-		}
-
-		public SymType GetType(string name)
-		{
-			if (!types.ContainsKey(name))
-			{
-				throw new SymTable.Exception("тип \"" + name + "\" неопределен");
-			}
-
-			return types[name];
-		}
-
-		public SymVar GetIdentifier(string name)
-		{
-			return vars[name];
-		}
-
-		public bool ContainsIdentifier(string name)
-		{
-			return vars.ContainsKey(name);
-		}
-
-		public bool ContainsType(string name)
-		{
-			return types.ContainsKey(name);
-		}
-
-		public string ToString(bool is_struct_items = false)
-		{
-			string s = (is_struct_items? "\nvars::\n": "<---TABLE--->\nVARS::\n");
-
-			foreach (var x in vars)
-			{
-				s += '\n';
-				if (x.Value == null)
-				{
-					s += x.Key + " $DUMMY$\n\n"; 
-				}
-				else
-				{
-					s += x.Value.ToString() + "\n\n";
-				}
-			}
-
-			s += "\n" + (is_struct_items? "types::": "TYPES::") +"\n";
-
-			foreach (var x in types)
-			{
-				s += x.Key + " " + x.Value.ToString() + "\n\n";
-			}
-
-			s += "\n" + (is_struct_items ? "const::" : "CONST::") + "\n";
-			
-			foreach (var x in consts)
-			{
-				s += x.Key + " " + x.Value.ToString() + "\n\n";
-			}
-
-			return s;
-		}
-	}
-
-	class StackTable
-	{
-		public class Iterator
-		{
-			SymTable cur, root;
-
-			public Iterator(StackTable tbs)
-			{
-				root = tbs.root;
-				cur = root;
-			}
-
-			public Iterator(SymTable table)
-			{
-				root = table;
-				cur = table;
-			}
-
-			public bool MoveUp()
-			{
-				if (cur.parent == null)
-				{
-					return false;
-				}
-
-				cur = cur.parent;
-				return true;
-			}
-
-			public bool MoveNext()
-			{
-				if (cur.children.Count == 0)
-				{
-					if (cur.parent == null)
-					{
-						return false;
-					}
-
-					SymTable p = cur.parent;
-
-					while (p != null && cur != root)
-					{
-						for (int i = 0; i < p.children.Count; i++)
-						{
-							if (p.children[i] == cur && i + 1 < p.children.Count)
-							{
-								cur = p.children[i + 1];
-								return true;
-							}
-						}
-						p = p.parent;
-					}
-					return false;
-				}
-				else
-				{
-					cur = cur.children[0];
-					return true;
-				}
-			}
-
-			public SymTable Current()
-			{
-				return cur;
-			}
-		}
-
-		SymTable root, current;
-
-		public StackTable()
-		{
-			root = new SymTable();
-			current = root;
-			root.AddType(new SymTypeChar());
-			root.AddType(new SymTypeDouble());
-			root.AddType(new SymTypeInt());
-			root.AddType(new SymTypeVoid());
-			
-			SymVarGlobal f = new SymVarGlobal();
-			f.SetName("printf");
-			SymTypeIncludeFunc ft = new SymTypeIncludeFunc(new SymTypeVoid());
-			SymVarParam vp = new SymVarParam();
-			vp.SetType(new SymTypePointer(new SymTypeChar()));
-			ft.SetParam(vp);
-			ft.SetUnspecifiedParam();
-			ft.SetName("printf");
-			f.SetType(ft);
-			root.AddVar(f);
-
-			f = new SymVarGlobal();
-			f.SetName("scanf");
-			ft = new SymTypeIncludeFunc(new SymTypeVoid());
-			vp.SetType(new SymTypePointer(new SymTypeChar()));
-			ft.SetParam(vp);
-			ft.SetUnspecifiedParam();
-			ft.SetName("scanf");
-			f.SetType(ft);
-			root.AddVar(f);
-
-			f = new SymVarGlobal();
-			f.SetName("getchar");
-			ft = new SymTypeIncludeFunc(new SymTypeInt());
-			ft.SetName("getchar");
-			f.SetType(ft);
-			root.AddVar(f);
-		}
-
-		public Iterator Begin()
-		{
-			return new Iterator(root);
-		}
-
-		public void NewTable()
-		{
-			SymTable new_node = new SymTable(current.children.Count, current.depth + 1);
-			new_node.parent = current;
-			current.children.Add(new_node);
-			current = new_node;
-		}
-
-		public SymTable GetCurrent()
-		{
-			return this.current;
-		}
-
-		public void Up()
-		{
-			if (current.parent == null)
-			{
-				throw new Exception("Out of range");
-			}
-
-			current = current.parent;
-		}
-
-		public void AddConst(SymVar c)
-		{
-			current.AddConst(c);
-		}
-
-		public bool ContainsConst(string name)
-		{
-			Iterator itr = new Iterator(current);
-			do
-			{
-				if (itr.Current().ContainsConst(name))
-				{
-					return true;
-				}
-			}
-			while (itr.MoveUp());
-
-			return false;
-		}
-
-		public SymVar GetConst(string name)
-		{
-			Iterator itr = new Iterator(current);
-			do
-			{
-				if (itr.Current().ContainsConst(name))
-				{
-					return itr.Current().GetConst(name);
-				}
-			}
-			while (itr.MoveUp());
-
-			return root.GetConst(name);
-		}
-
-		public void AddVar(SymVar var)
-		{
-			current.AddVar(var);
-		}
-
-		public void AddType(SymType t)
-		{
-			current.AddType(t);
-		}
-
-		public SymType GetType(string name)
-		{
-			Iterator itr = new Iterator(current);
-			do 
-			{
-				if (itr.Current().ContainsType(name))
-				{
-					return itr.Current().GetType(name);
-				}
-			} 
-			while (itr.MoveUp());
-
-			return null;
-		}
-
-		public bool ContainsType(string name)
-		{
-			Iterator itr = new Iterator(current);
-			do
-			{
-				if (itr.Current().ContainsType(name))
-				{
-					return true;
-				}
-			}
-			while (itr.MoveUp());
-
-			return false;
-		}
-
-		public SymVar GetIdentifier(string name)
-		{
-			Iterator itr = new Iterator(current);
-			do
-			{
-				if (itr.Current().ContainsIdentifier(name))
-				{
-					return itr.Current().GetIdentifier(name);
-				}
-			}
-			while (itr.MoveUp());
-			return null;
-		}
-
-		public bool ContainsIdentifier(string name)
-		{
-			Iterator itr = new Iterator(current);
-
-			do
-			{
-				if (itr.Current().ContainsIdentifier(name))
-				{
-					return true;
-				}
-			}
-			while (itr.MoveUp());
-
-			return false;
-		}
-
-		public bool isGlobalTable()
-		{
-			return root == current;
-		}
-
-		public override string ToString()
-		{
-			string s = "<--------TABLES-------->\n";
-			s += root.ToString();
-
-			return s;
-		}
-	}
-
-	class Symbol
-	{
-		public class Exception : Compiler.Exception 
-		{
-			public int pos, line;
-			public Exception(string s = "", int pos = -1, int line = -1) : base(s) 
-			{
-				this.pos = pos;
+				this.SetName(name);
 				this.line = line;
+				this.index = index;
 			}
-		}
 
-		public const string UNNAMED = "@UNNAMED@";
-
-		public string name;
-		public Pair<int, int> pos_in_tables = new Pair<int, int>(-1, -1);
-
-		public Symbol(string name)
-		{
-			this.name = name;
-		}
-
-		public Symbol()
-		{
-			this.name = UNNAMED;
-		}
-
-		public void SetName(string s)
-		{
-			name = s;
-		}
-
-		public string GetName()
-		{
-			return name;
-		}
-
-		public override string ToString()
-		{
-			return this.name;
-		}
-	}
-
-#region Variable
-
-	abstract class SymVar : Symbol
-	{
-		public SymType type = null;
-		public SynInit value = null;
-		public Token token;
-		public int line, pos;
-
-		public SymVar() : base() { }
-		public SymVar(Token t)
-		{
-			token = t;
-			this.name = t.strval;
-			line = t.line;
-			pos = t.pos;
-		}
-
-		virtual public void SetType(SymType type)
-		{
-			this.type = type;
-		}
-
-		public void SetInitValue(SynInit val)
-		{
-			if (!val.getType().Compatible(val.getType()))
+			public Symbol(Token t)
 			{
-				Symbol.Exception e = new Symbol.Exception("значение типа \"" + val.getType().ToString() 
-					+ "\" нельзя использовать для инициализации сущности типа \"" + type.ToString() + "\"",
-					val.pos, val.line);
-				throw e;
+				this.index = t.pos;
+				this.line = t.line;
+				this.SetName(t.GetStrVal());
 			}
 
-			value = val;
-		}
-
-		public override string ToString()
-		{
-			return this.name + "   " + this.type.ToString() + "   " + (this.value == null? "": "\n = " + this.value.ToString());
-		}
-
-		public override bool Equals(object obj)
-		{
-			if (obj is SymVar)
+			public string GetName()
 			{
-				return this.name == ((SymVar)obj).name && this.type.Equals(((SymVar)obj).type);
+				return this.name.Length > 0 ? this.name : "unnamed";
 			}
-			return base.Equals(obj);
-		}
 
-		abstract public void GenerateCode(CodeGen.Code code);
-
-		
-		public void GenerateInitialize(CodeGen.Code code)
-		{
-			if (value != null)
+			public void SetName(string name)
 			{
-				AssignOper init = new AssignOper();
-				init.SetLeftOperand(new IdentExpr(this));
-				init.SetRightOperand(value);
-				init.GenerateCode(code);
+				this.name = name;
+			}
+
+			public void SetPosition(int index, int line)
+			{
+				this.line = line;
+				this.index = index;
+			}
+
+			public int GetLine()
+			{
+				return this.line;
+			}
+
+			public int GetIndex()
+			{
+				return this.index;
+			}
+
+			virtual public void Print(StreamWriter stream, int indent)
+			{
+				stream.Write(new String(' ', indent) + this.name);
+			}
+
+			public override string ToString()
+			{
+				return this.name.Length > 0 ? this.name : "unnamed";
+			}
+
+			abstract public bool Equals(Symbol t);
+		}
+
+
+		class Var : Symbol
+		{
+			protected Type type = null;
+			protected Syntax.Expression value = null;
+
+			public Var() : base() { }
+
+			public Var(Token t) : base(t) { }
+
+			public Var(string name, int index, int line) : base(name, index, line) { }
+
+			public void SetType(Type type) 
+			{
+				this.type = type;
+			}
+
+			new public Type GetType()
+			{
+				return this.type is TYPEDEF ? ((TYPEDEF)this.type).GetRefType() : this.type;
+			}
+
+			public void SetInitializer(Syntax.Expression init)
+			{
+				this.value = init;
+			}
+
+			public override void Print(StreamWriter stream, int indent)
+			{
+				stream.Write(new String(' ', indent) + "var ");
+				base.Print(stream, 0);
+				stream.Write(" type ");
+				this.GetType().Print(stream, 0);
+				if (this.value != null)
+				{
+					stream.Write(stream.NewLine);
+					this.value.Print(stream, indent);
+				}
+			}
+
+			public override bool Equals(Symbol t)
+			{
+				Symbol tt = ((Var)t).GetType();
+				return t is Var && t.GetName() == this.GetName() && this.type.Equals(tt);
 			}
 		}
-	}
 
-	class SymSuperVar : SymVar
-	{
-		public const string NAME_IN_TABLE = "$SUPER VAR$";
 
-		public SymSuperVar(Token t) : base(t) 
+		class SuperVar : Var
 		{
-			type = new SymSuperType();
-			name = t.strval;
+			public SuperVar() : base() { this.type = new SuperType(); }
+
+			public SuperVar(Token t) : base(t) { this.type = new SuperType(); }
+
+			public SuperVar(string name, int index, int line) : base(name, index, line) { this.type = new SuperType(); }
+
+			public override void Print(StreamWriter stream, int indent)
+			{
+				stream.Write(new String(' ', indent) + "super ");
+				base.Print(stream, 0);
+			}
+
+			public override bool Equals(Symbol t)
+			{
+				return t is Var;
+			}
 		}
 
-		public SymSuperVar() : base() 
+
+		class ConstVar : Var
 		{
-			type = new SymSuperType();
-			name = NAME_IN_TABLE;
+			public ConstVar() : base() { }
+
+			public ConstVar(Token t) : base(t) { }
+
+			public ConstVar(string name, int index, int line) : base(name, index, line) { }
+
+			public override void Print(StreamWriter stream, int indent)
+			{
+				stream.Write(new String(' ', indent) + "const ");
+				base.Print(stream, 0);
+			}
+
+			public override bool Equals(Symbol t)
+			{
+				return t is ConstVar && base.Equals(t);
+			}
 		}
 
-		public override string ToString()
+
+		class GlobalVar : Var
 		{
-			return "SUPER VAR" + "   " + this.type.ToString();
+			public GlobalVar() : base() { }
+
+			public GlobalVar(Token t) : base(t) { }
+
+			public GlobalVar(string name, int index, int line) : base(name, index, line) { }
 		}
 
-		public override bool Equals(object obj)
+
+		class LocalVar : Var
 		{
-			if (obj is SymVar)
+			public LocalVar() : base() { }
+
+			public LocalVar(Token t) : base(t) { }
+
+			public LocalVar(string name, int index, int line) : base(name, index, line) { }
+		}
+
+
+		class ParamVar : Var
+		{
+			public ParamVar() : base() { }
+
+			public ParamVar(Token t) : base(t) { }
+
+			public ParamVar(string name, int index, int line) : base(name, index, line) { }
+
+			public override bool Equals(Symbol t)
+			{
+				return t is ParamVar && this.type.Equals(((Var)t).GetType());
+			}
+		}
+
+
+		abstract class Type : Symbol
+		{
+			protected virtual int size_t { get { return 0; } }
+
+			public Type() : base() { }
+
+			public Type(Token t) : base(t) { }
+
+			public Type(string name, int index, int line) : base(name, index, line) { }
+
+			virtual public bool IsArifmetic()
+			{
+				return false;
+			}
+
+			virtual public bool IsInteger()
+			{
+				return false;
+			}
+
+			public int GetSizeType()
+			{
+				return this.size_t;
+			}
+
+			public override void Print(StreamWriter stream, int indent)
+			{
+				base.Print(stream, indent);
+			}
+
+			public override bool Equals(Symbol t)
+			{
+				return t is Type && t.GetName() == this.GetName();
+			}
+		}
+
+
+		class SuperType : Type 
+		{
+			public SuperType()
+			{
+				this.name = "super";
+			}
+
+			public override bool IsArifmetic()
 			{
 				return true;
 			}
 
-			return base.Equals(obj);
-		}
-
-		public override void GenerateCode(CodeGen.Code code)
-		{
-			throw new NotImplementedException();
-		}
-	}
-
-	class SymVarParam : SymVar
-	{
-		public SymVarParam(Token t) : base(t) 
-		{
-			line = t.line;
-			pos = t.pos;
-		}
-		public SymVarParam() : base() { }
-		public SymVarParam(int line, int pos)
-		{
-			this.line = line;
-			this.pos = pos;
-		}
-
-		public override bool Equals(object obj)
-		{
-			if (obj is SymVarParam)
+			public override bool IsInteger()
 			{
-				if (((SymVarParam)obj).name == UNNAMED || this.name == UNNAMED || this.name == ((SymVarParam)obj).name)
+				return true;
+			}
+
+			public override bool Equals(Symbol t)
+			{
+				return t is Type;
+			}
+		}
+
+
+		abstract class TypeScalar : Type
+		{
+			public TypeScalar() : base() { }
+
+			public TypeScalar(Token t) : base(t) { }
+
+			public TypeScalar(string name, int index, int line) : base(name, index, line) { }
+
+			override public bool IsArifmetic() { return true; }
+		}
+
+
+		class VOID : TypeScalar 
+		{
+			public VOID() : base() { this.name = "void"; }
+
+			public VOID(Token t) : base(t) { }
+
+			public VOID(string name, int index, int line) : base(name, index, line) { }
+
+			override public bool IsArifmetic() { return false; }
+		}
+
+
+		class INT : TypeScalar
+		{
+			protected override int size_t { get { return 4;} }
+
+			public INT() : base() { this.name = "int"; }
+
+			public INT(Token t) : base(t) { }
+
+			public INT(string name, int index, int line) : base(name, index, line) { }
+
+			public override bool IsInteger()
+			{
+				return true;
+			}
+		}
+
+
+		class CHAR : TypeScalar
+		{
+			public CHAR() : base() { this.name = "char"; }
+
+			public CHAR(Token t) : base(t) { }
+
+			public CHAR(string name, int index, int line) : base(name, index, line) { }
+
+			public override bool IsInteger()
+			{
+				return true;
+			}
+		}
+
+
+		class DOUBLE : TypeScalar
+		{
+			public DOUBLE() : base() { this.name = "double"; }
+
+			public DOUBLE(Token t) : base(t) { }
+
+			public DOUBLE(string name, int index, int line) : base(name, index, line) { }
+		}
+
+
+		class RECORD : Type
+		{
+			protected Table table = null;
+			public RECORD() : base() { }
+
+			public RECORD(Token t) : base(t) { }
+
+			public RECORD(string name, int index, int line) : base(name, index, line) { }
+
+			public void SetFields(Table table)
+			{
+				this.table = table;
+				if (table == null || table.GetSize() == 0)
 				{
-					return this.type.Equals(((SymVarParam)obj).type);
+					throw new Exception("необходим хотя бы один элемент", this.GetIndex(), this.GetLine());
+				}
+			}
+
+			public Table GetTable()
+			{
+				return this.table;
+			}
+
+			public override void Print(StreamWriter stream, int indent)
+			{
+				int base_indent = stream.GetCharPos();
+				base.Print(stream, indent);
+				stream.Write(" record");
+				stream.Write(stream.NewLine);
+				this.table.Print(stream, base_indent + indent + 3);
+				stream.Write(new String(' ', base_indent + indent) + " endrecord");
+			}
+
+			public override bool Equals(Symbol t)
+			{
+				return t is RECORD && base.Equals(t) && this.table.Equals(((RECORD)t).table);
+			}
+		}
+
+
+		class ENUM : Type
+		{
+			public ENUM() : base() { }
+
+			public ENUM(Token t) : base(t) 
+			{
+				this.name = "enum";
+			}
+
+			public ENUM(string name, int index, int line) : base(name, index, line) { }
+		}
+
+
+		abstract class RefType : Type
+		{
+			protected Type type = null;
+
+			public RefType() : base() { }
+
+			public RefType(Token t) : base(t) { }
+
+			public RefType(string name, int index, int line) : base(name, index, line) { }
+
+			public RefType(Type t)
+			{
+				this.SetType(t);
+			}
+
+			public RefType(Token t, Type ty)
+				: base(t)
+			{
+				this.SetType(ty);
+			}
+
+			public void SetType(Type type)
+			{
+				this.type = type;
+			}
+
+			public override string ToString()
+			{
+				return this.GetRefType().ToString() + " *";
+			}
+
+			public Type GetRefType()
+			{
+				return this.type is TYPEDEF ? ((TYPEDEF)this.type).GetRefType() : this.type;
+			}
+		}
+
+
+		class TYPEDEF : RefType
+		{
+			public TYPEDEF() : base() { }
+
+			public TYPEDEF(Token t) : base(t) { }
+
+			public TYPEDEF(Type t) : base(t) { }
+
+			public override void Print(StreamWriter stream, int indent)
+			{
+				stream.Write(new String(' ', indent) + "typedef <" + this.name + "> <");
+				this.GetRefType().Print(stream, 0);
+			}
+
+			public override bool Equals(Symbol t)
+			{
+				return t.Equals(this.GetRefType());
+			}
+		}
+
+
+		class POINTER : RefType
+		{
+			public POINTER() : base() { }
+
+			public POINTER(Token t) : base(t) 
+			{
+				this.name = "pointer";
+			}
+
+			public POINTER(Type t) : base(t) { }
+
+			public POINTER(Token t, Type ty) : base(t) 
+			{
+				this.SetType(ty);
+				this.name = "pointer";
+			}
+
+			public POINTER(string name, int index, int line) : base(name, index, line) { }
+
+			public override bool Equals(Symbol t)
+			{
+				return t is POINTER && this.type.Equals(((RefType)t).GetRefType());
+			}
+
+			public override void Print(StreamWriter stream, int indent)
+			{
+				base.Print(stream, indent);
+				stream.Write(" to ");
+				this.GetRefType().Print(stream, 0);
+			}
+		}
+
+
+		class ARRAY : POINTER
+		{
+			protected const int DIMENSIONLESS = -1;
+			protected int size = DIMENSIONLESS;
+
+			public ARRAY() : base() { }
+
+			public ARRAY(Token t)
+				: base(t)
+			{
+				this.name = "array";
+			}
+
+			public ARRAY(string name, int index, int line) : base(name, index, line) { }
+
+			public ARRAY(Type t)
+				: base(t)
+			{
+				this.name = "array";
+			}
+
+			public void SetSize(Syntax.Expression size)
+			{
+				Syntax.Object.CheckObject(size);
+				try
+				{
+					this.size = size.ComputeConstIntValue();
+				}
+				catch (Syntax.CanNotCalculated e)
+				{
+					throw e;
+				}
+			}
+
+			public override void Print(StreamWriter stream, int indent)
+			{
+				stream.Write(new String(' ', indent) + "array");
+				stream.Write(this.size == ARRAY.DIMENSIONLESS ? " dimensionless" : " size " + this.size);
+				stream.Write(" of ");
+				this.GetRefType().Print(stream, 0);
+			}
+		}
+
+
+		class Func : RefType
+		{
+			protected List<ParamVar> args = new List<ParamVar>();
+			protected Syntax.Statement body = null;
+			protected Table table = null;
+
+			public Func() : base() { }
+
+			public Func(Token t) : base(t) { }
+
+			public Func(Type t) : base(t) { }
+
+			public Func(string name, int index, int line) : base(name, index, line) { }
+
+
+			public bool Merge(Func f)
+			{
+				if (f.Equals(this) && !f.IsEmptyBody() && this.IsEmptyBody())
+				{
+					this.SetBody(f.body);
+					this.SetTable(f.table);
+					return true;
 				}
 				return false;
 			}
 
-			return base.Equals(obj);
-		}
 
-		public string GenerateCode()
-		{
-			return name + ":" + type.GenerateDeclaratorCode(this);
-		}
-
-		public override void GenerateCode(CodeGen.Code code)
-		{
-			throw new NotImplementedException();
-		}
-	}
-
-	class SymVarLocal : SymVar
-	{
-		public SymVarLocal(Token t) : base(t) { }
-		public SymVarLocal() : base() { }
-
-		public override void GenerateCode(CodeGen.Code code)
-		{
-			code.AddLine("LOCAL " + name + ":" + type.GenerateDeclaratorCode(this), 6);
-		}
-	}
-
-	class SymVarGlobal : SymVar
-	{
-		public SymVarGlobal(Token t) : base(t) { }
-		public SymVarGlobal() : base() { }
-
-		public override void GenerateCode(CodeGen.Code code)
-		{
-			if (type is SymTypeFunc)
+			public override bool Equals(Symbol t)
 			{
-				((SymTypeFunc)type).GenerateDeclarationCode(code);
-				return;
-			}
-
-			code.AddLine(name + " " + type.GenerateDeclaratorCode(this) + " " + SynInit.GenerateBaseInitCode(type));
-		}
-	}
-
-	class SymVarConst : SymVar
-	{
-		public SymVarConst(Token t) : base(t) { }
-
-		public override void GenerateCode(CodeGen.Code code)
-		{
-			if (type is SymTypeInt)
-			{
-				code.AddLine(name + " " + type.GenerateDeclaratorCode(this) + " " + value.ComputeConstIntValue());
-			}
-			else if (type is SymTypeArray)
-			{
-				code.AddLine(name + " " + type.GenerateDeclaratorCode(this) + " dup(\"" + ((ConstExpr)value.val).value + "\", 0)");
-			}
-			else
-			{
-				throw new NotImplementedException();
-			}
-		}
-	}
-
-#endregion
-
-#region Types
-
-	abstract class SymType : Symbol
-	{
-		virtual public SymTypeScalar GetTailType(){
-			return (SymTypeScalar)this;
-		}
-
-		public abstract bool Compatible(SymType t);
-
-		public abstract int GetSize();
-
-		public abstract string GenerateDeclaratorCode(SymVar var);
-
-		public abstract void GenerateDeclarationCode(CodeGen.Code code);
-
-		public bool Equels(Object obj, bool pr = true) { return false; }
-	}
-
-	class SymSuperType : SymType
-	{
-		public SymSuperType() { }
-
-		public override string ToString()
-		{
-			return "SUPER TYPE";
-		}
-
-		public override bool Equals(object obj)
-		{
-			if (obj is SymType)
-			{
-				return true;
-			}
-			return base.Equals(obj);
-		}
-
-		public override bool Compatible(SymType t)
-		{
-			return true;
-		}
-
-		override public int GetSize()
-		{
-			return 0;
-		}
-
-		public override void GenerateDeclarationCode(CodeGen.Code code)
-		{
-			throw new NotImplementedException();
-		}
-
-		public override string GenerateDeclaratorCode(SymVar var)
-		{
-			throw new NotImplementedException();
-		}
-	}
-
-	abstract class SymTypeScalar : SymType
-	{
-		public int line, pos;
-		public SymTypeScalar(string s)
-		{
-			this.name = s;
-		}
-
-		public SymTypeScalar(Token t)
-		{
-			name = t.strval;
-			line = t.line;
-			pos = t.pos;
-		}
-
-		override public bool Equals(object obj)
-		{
-			if (obj is SymTypeScalar)
-			{
-				return this.name == ((SymTypeScalar)obj).name;
-			}
-			else if (obj is SymTypeAlias)
-			{
-				return this.Equals(((SymTypeAlias)obj).type);
-			}
-
-			return base.Equals(obj);
-		}
-
-		public override void GenerateDeclarationCode(CodeGen.Code code) {  }
-	}
-
-	class SymTypeVoid : SymTypeScalar
-	{
-		public SymTypeVoid(Token t) : base(t) { }
-		public SymTypeVoid() : base("void") { }
-
-		public override bool Compatible(SymType t)
-		{
-			return true;
-		}
-
-		public override int GetSize()
-		{
-			return 0;
-		}
-
-		public override string GenerateDeclaratorCode(SymVar var)
-		{
-			throw new NotImplementedException();
-		}
-	}
-
-	class SymTypeDouble : SymTypeScalar
-	{
-		public SymTypeDouble(Token t) : base(t) { }
-		public SymTypeDouble() : base("double") { }
-
-		public override bool Compatible(SymType t)
-		{
-			return t is SymSuperType || t is SymTypeChar || t is SymTypePointer
-				|| t is SymTypeDouble || t is SymTypeEnum || t is SymTypeFunc || t is SymTypeInt;
-		}
-
-		public override int GetSize()
-		{
-			return 8;
-		}
-
-		public override string GenerateDeclaratorCode(SymVar var)
-		{
-			return "QWORD";
-		}
-	}
-
-	class SymTypeChar : SymTypeScalar
-	{
-		public SymTypeChar(Token t) : base(t) { }
-		public SymTypeChar() : base("char") { }
-
-		public override bool Compatible(SymType t)
-		{
-			return t is SymSuperType || t is SymTypeChar || t is SymTypePointer
-				|| t is SymTypeDouble || t is SymTypeEnum || t is SymTypeFunc || t is SymTypeInt;
-		}
-
-		public override int GetSize()
-		{
-			return 1;
-		}
-
-		public override string GenerateDeclaratorCode(SymVar var)
-		{
-			return "BYTE";
-		}
-	}
-
-	class SymTypeInt : SymTypeScalar
-	{
-		public SymTypeInt(Token t) : base(t) { }
-		public SymTypeInt() : base("int") { }
-
-		public override bool Compatible(SymType t)
-		{
-			return t is SymSuperType || t is SymTypeChar || t is SymTypePointer 
-				|| t is SymTypeDouble || t is SymTypeEnum || t is SymTypeFunc || t is SymTypeInt;
-		}
-
-		public override int GetSize()
-		{
-			return 4;
-		}
-
-		public override string GenerateDeclaratorCode(SymVar var)
-		{
-			return "DWORD";
-		}
-	}
-
-	abstract class SymRefType : SymType
-	{
-		public SymType type;
-
-		public SymRefType(SymType t = null)
-		{
-			type = null;
-		}
-
-		public void SetType(SymType t)
-		{
-			this.type = t;
-		}
-
-		public override SymTypeScalar GetTailType()
-		{
-			SymType itr = this.type;
-			while (itr is SymRefType)
-			{
-				itr = ((SymRefType)itr).type;
-			}
-
-			return (SymTypeScalar)itr;
-		}
-	}
-
-	class SymTypeArray : SymRefType
-	{
-		SynExpr size = null;
-		int comp_size = 0;
-		public SymTypeArray(SymType t = null)
-		{
-			this.type = t;
-		}
-
-		public void SetSize(SynExpr size)
-		{
-			this.size = size;
-			this.comp_size = ((SynConstExpr)size).ComputeConstIntValue();
-		}
-
-		public int GetSizeArray()
-		{
-			return this.comp_size;
-		}
-
-		public override string ToString()
-		{
-			return "ARRAY (" + (size == null? "" :size.ToString()) + ") OF " + type.ToString(); 
-		}
-
-		public override bool Compatible(SymType t)
-		{
-			return t is SymSuperType || t is SymTypeInt || t is SymTypeChar || t is SymTypePointer;
-		}
-
-		public override int GetSize()
-		{
-			return 4;
-		}
-
-		public override void GenerateDeclarationCode(CodeGen.Code code)
-		{
-		}
-
-		public override string GenerateDeclaratorCode(SymVar var)
-		{
-			int sz = 1;
-			SymType t = this;
-			while (t is SymTypeArray)
-			{
-				sz *= ((SynConstExpr)((SymTypeArray)t).size).ComputeConstIntValue();
-				t = ((SymTypeArray)t).type;
-			}
-
-			if (var is SymVarLocal)
-			{
-				return "[" + sz + "]:" + t.GenerateDeclaratorCode(var);
-			}
-			else
-			{
-				return t.GenerateDeclaratorCode(var) + " " + sz;
-			}
-		}
-	}
-
-	class SymTypeFunc : SymRefType
-	{
-		public List<SymVarParam> args = new List<SymVarParam>();
-		public StmtBLOCK body = null;
-		public bool unspecified_number_param = false;
-
-		public SymTypeFunc(SymType t = null)
-		{
-			this.type = t;
-		}
-
-		public void SetParam(SymVarParam p)
-		{
-			string error = "недопустимо использование типа \"void\"";
-			if (args.Count == 1 && args[0].type is SymTypeVoid)
-			{
-				SymTypeVoid t = (SymTypeVoid)args[0].type;
-				throw new Symbol.Exception(error, t.pos, t.line);
-			}
-
-			if (p.type is SymTypeVoid)
-			{
-				SymTypeVoid t = (SymTypeVoid)p.type;
-				if (p.GetName() != UNNAMED || args.Count > 0)
+				if (t is Func && base.Equals(t))
 				{
-					throw new Symbol.Exception(error, t.pos, t.line);
-				}
-			}
-
-			this.args.Add(p);
-		}
-
-		public void SetUnspecifiedParam()
-		{
-			unspecified_number_param = true;
-		}
-
-		public void SetBody(StmtBLOCK _body)
-		{
-			body = _body;
-
-			if (args.Count == 1 && args[0].type is SymTypeVoid && args[0].GetName() == UNNAMED)
-			{
-				return;
-			}
-
-			foreach (var arg in args)
-			{
-				if (arg.GetName() == UNNAMED)
-				{
-					Symbol.Exception e = new Symbol.Exception("требуется идентификатор", arg.pos, arg.line);
-					e.Data["delayed"] = true;
-					throw e;
-				}
-
-				if (arg.type is SymTypeVoid)
-				{
-					SymTypeVoid t = (SymTypeVoid)arg.type;
-					Symbol.Exception e = new Symbol.Exception("недопустимо использование типа \"void\"", t.pos, t.line);
-					e.Data["delayed"] = true;
-					throw e;
-				}
-			}
-		}
-
-		public bool IsEmptyBody()
-		{
-			return body == null;
-		}
-
-		override public bool Equals(Object obj)
-		{
-			if(obj is SymTypeFunc)
-			{
-				if (!this.type.Equals(((SymTypeFunc)obj).type))
-					return false;
-
-				int i = 0, j = 0;
-				while (i < this.args.Count && j < ((SymTypeFunc)obj).args.Count)
-				{
-					while (i < this.args.Count && this.args[i].type is SymTypeVoid) { i++; }
-					while (j < ((SymTypeFunc)obj).args.Count && ((SymTypeFunc)obj).args[j].type is SymTypeVoid) { j++; }
-
-					if (!(this.args[i].Equals(((SymTypeFunc)obj).args[j])))
+					Func f = (Func)t;
+					if (f.args.Count != this.args.Count)
 					{
 						return false;
 					}
-					i++; j++;
-				}
 
-				return (i == this.args.Count || i == 0) && (j == ((SymTypeFunc)obj).args.Count || j == 0);
-			}
-			return base.Equals(obj);
-		}
-
-		public override string ToString()
-		{
-			string s = "FUNC (";
-
-			for (int i = 0; i < args.Count; i++)
-			{
-				s += args[i].ToString() + (i == args.Count - 1? "": ",");
-			}
-
-			s += (body == null ? ") " : ") { " + body.ToString() + " }") + " RETURNED " + this.type.ToString();
-			return s;
-		}
-
-		public override bool Compatible(SymType t)
-		{
-			return t is SymSuperType || this.Equals(t);
-		}
-
-		public override int GetSize()
-		{
-			return 4;
-		}
-
-		public override void GenerateDeclarationCode(CodeGen.Code code)
-		{
-			code.SetIndent(3);
-			string s = name + " PROC";
-			for (int i = 0; i < args.Count; i++)
-			{
-				args[i].name += "@" + name;
-				s += (i == 0 ? " " : ", ") + args[i].GenerateCode();
-			}
-			code.AddLine(s);
-
-
-			code.SetIndent(6);
-			CodeGen.Code init = new CodeGen.Code(6);
-			StackTable.Iterator titr = new StackTable.Iterator(body.table);
-			do
-			{
-				string pr = "@" + titr.Current().depth + "_" + titr.Current().pos;
-				foreach (var lv in titr.Current().vars.Values)
-				{
-					if (!(lv is SymVarParam))
+					for (int i = 0; i < f.args.Count; ++i)
 					{
-						lv.name += pr;
-						lv.GenerateCode(code);
-						lv.GenerateInitialize(init);
+						if (!args.ElementAt(i).Equals(f.args.ElementAt(i)))
+						{
+							return false;
+						}
 					}
+					return true;
 				}
-			} while (titr.MoveNext());
-			code = code + init;
+				return false;
+			}
 
-			code.SetIndent(6);
-			body.GenerateCode(code);
 
-			code.AddLine("RET", 6);
-			code.SetIndent(3);
-			code.AddLine(name + " ENDP");
-		}
-
-		public override string GenerateDeclaratorCode(SymVar var)
-		{
-			throw new NotImplementedException();
-		}
-	}
-
-	class SymTypeIncludeFunc : SymTypeFunc
-	{
-		public SymTypeIncludeFunc(SymType t) : base(t) { }
-
-		public override void GenerateDeclarationCode(CodeGen.Code code)
-		{
-			code.AddLine("extern " + this.name + ":near", 3);
-		}
-	}
-
-	class SymTypeEnum : SymType
-	{
-		Dictionary<string, SymVar> enumerators = new Dictionary<string, SymVar>();
-
-		public void AddEnumerator(SymVar var)
-		{
-			if (var.value == null)
+			public void SetArguments(List<ParamVar> args)
 			{
-				SynInit val = null;
-				if(enumerators.Count == 0)
+				this.args = args;
+			}
+
+			public List<ParamVar> GetArguments()
+			{
+				return this.args;
+			}
+
+			public void AddArgument(ParamVar arg)
+			{
+				this.args.Add(arg);
+			}
+
+			public void SetBody(Syntax.Statement body) 
+			{
+				this.body = body;
+			}
+
+			public void SetTable(Table table)
+			{
+				this.table = table;
+			}
+
+			public Table GetTable()
+			{
+				return this.table;
+			}
+
+			public bool IsEmptyBody()
+			{
+				return this.body == null;
+			}
+
+			public override void Print(StreamWriter stream, int indent)
+			{
+				int base_indent = stream.GetCharPos();
+				stream.Write("function " + this.name + "(");
+				foreach (Var param in this.args)
 				{
-					val = new SynInit(new ConstExpr(new SymTypeInt(), "0"));
+					param.Print(stream, 0);
+					stream.Write(", ");
 				}
-				else
+				stream.Write("){");
+				if (this.body != null)
 				{
-					BinaryOper expr = new BinaryOper(new Token(Token.Type.OP_PLUS));
-					expr.SetLeftOperand(enumerators.Values.Last().value.val);
-					expr.SetRightOperand(new ConstExpr(new SymTypeInt(), "1"));
-					val = new SynInit(expr);
+					stream.Write(stream.NewLine);
+					this.table.Print(stream, base_indent + indent + 3);
+					this.body.Print(stream, base_indent + indent + 3);
 				}
-
-				var.SetInitValue(val);
+				stream.Write(stream.NewLine);
+				stream.Write("} returned ");
+				this.GetRefType().Print(stream, 0);
 			}
-
-			this.enumerators.Add(var.name, var);
-		}
-
-		public override string ToString()
-		{
-			string s = "ENUM " + this.name + " {\n";
-			foreach (var e in this.enumerators)
-			{
-				s += e.Value.ToString() + '\n';
-			}
-			s += "}";
-			return s;
-		}
-
-		public override bool Compatible(SymType t)
-		{
-			return t is SymSuperType || t is SymTypeInt || t is SymTypeChar || t is SymTypeDouble || t is SymTypeEnum;
-		}
-
-		public override int GetSize()
-		{
-			return 4;
-		}
-
-		public override void GenerateDeclarationCode(CodeGen.Code code)
-		{
-			foreach (SymVarConst c in enumerators.Values)
-			{
-				c.name += "@" + this.name + this.pos_in_tables.first + "_" + pos_in_tables.last;
-				c.GenerateCode(code);
-			}
-		}
-
-		public override string GenerateDeclaratorCode(SymVar var)
-		{
-			return "DWORD";
 		}
 	}
-
-	class SymTypeStruct : SymType
-	{
-		public SymTable fields;
-
-		public void SetItems(SymTable table)
-		{
-			fields = table;
-		}
-
-		public override string ToString()
-		{
-			return  "STRUCT " + this.name + "{" + fields.ToString(true) + "}";
-		}
-
-		public override bool Compatible(SymType t)
-		{
-			return this.Equals(t);
-		}
-
-		public override int GetSize()
-		{
-			int size = 0;
-			foreach (var field in fields.vars)
-			{
-				size += field.Value.type.GetSize();
-			}
-
-			return size;
-		}
-
-		public override void GenerateDeclarationCode(CodeGen.Code code)
-		{
-			this.name += "@" + pos_in_tables.first + "_" + pos_in_tables.last;
-			code.AddLine(this.name + " STRUCT", 3);
-			code.SetIndent(6);
-			foreach (SymVar v in fields.vars.Values)
-			{
-				v.GenerateCode(code);
-			}
-			code.SetIndent(3);
-			code.AddLine(this.name + " ENDS");	
-		}
-
-		public override string GenerateDeclaratorCode(SymVar var)
-		{
-			return this.name;
-		}
-	}
-
-	class SymTypeAlias : SymRefType
-	{
-		protected int line = -1, pos = -1;
-		public SymTypeAlias(SymVar var)
-		{
-			this.type = var.type;
-			this.name = var.GetName();
-			this.line = var.token.line;
-			this.pos = var.token.pos;
-		}
-
-		public override string ToString()
-		{
-			return type.ToString();
-		}
-
-		public override SymTypeScalar GetTailType()
-		{
-			return type.GetTailType();
-		}
-
-		public override bool Equals(object obj)
-		{
-			if (obj is SymTypeAlias)
-			{
-				return this.name == ((SymTypeAlias)obj).name && this.type.Equals(((SymTypeAlias)obj).type);
-			}
-
-			return base.Equals(obj);
-		}
-
-		public override bool Compatible(SymType t)
-		{
-			return this.type.Compatible(t);
-		}
-
-		public override int GetSize()
-		{
-			return type.GetSize();
-		}
-
-		public override void GenerateDeclarationCode(CodeGen.Code code)
-		{
-			throw new NotImplementedException();
-		}
-
-		public override string GenerateDeclaratorCode(SymVar var)
-		{
-			throw new NotImplementedException();
-		}
-	}
-
-	class SymTypePointer : SymRefType
-	{
-		public SymTypePointer(SymType t = null)
-		{
-			this.type = t;
-		}
-
-		public override string ToString()
-		{
-			return "POINTER TO " + type.ToString();
-		}
-
-		public override bool Compatible(SymType t)
-		{
-			return t is SymSuperType || t is SymTypeInt || t is SymTypeChar || t is SymTypePointer 
-				|| t is SymTypeArray || t is SymTypeFunc || t is SymTypeEnum || t is SymTypeFunc;
-		}
-
-		public override int GetSize()
-		{
-			return 4;
-		}
-
-		public override void GenerateDeclarationCode(CodeGen.Code code)
-		{
-			throw new NotImplementedException();
-		}
-
-		public override string GenerateDeclaratorCode(SymVar var)
-		{
-			return "DWORD";
-		}
-		public override bool Equals(object obj)
-		{
-			return obj is SymTypePointer && this.type.Equals(((SymTypePointer)obj).type);
-		}
-	}
-
-#endregion
 }

@@ -1,37 +1,37 @@
-<--------TABLES-------->
-<---TABLE--->
-VARS::
+<<<table #1>>>
+<tags>
+<types>
+int
+char
+double
+void
+<vars>
+var f type function (){
+              <<<table #3>>>
+              <tags>
+              <types>
+              <vars>
+              var x type int
+              ÀÄÄ{=}
+                 ÃÄÄ{x}
+                 ÀÄÄ{6}
 
-f   FUNC () { BLOCK
-     "="
-          x
+              var y type int
+              ÀÄÄ{=}
+                 ÃÄÄ{y}
+                 ÀÄÄ{36}
 
-          "+"
-               x
-               y
-     "*="
-          x
-          1     RETURN          x } RETURNED int   
+              ÀÄÄ{block}
+                 ÃÄÄ{=}
+                 ³  ÃÄÄ{x}
+                 ³  ÀÄÄ{+}
+                 ³     ÃÄÄ{x}
+                 ³     ÀÄÄ{y}
+                 ÃÄÄ{*=}
+                 ³  ÃÄÄ{x}
+                 ³  ÀÄÄ{1}
+                 ÀÄÄ{return}
+                    ÀÄÄ{x}
 
+} returned int
 
-TYPES::
-char char
-
-double double
-
-int int
-
-void void
-
-<---TABLE--->
-VARS::
-
-x   int   
- = 6
-
-
-y   int   
- = 36
-
-
-TYPES::

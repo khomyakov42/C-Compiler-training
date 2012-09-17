@@ -2,6 +2,7 @@
 for /r tests/parser/declaration %%f in (*.test) do (
 	del %%f.out
 	bin\Debug\Compiler.exe -c %%f >> %%f.out
+   echo compilation %%f
 )
 
 for /r tests/parser/declaration %%f in (*.test) do (
@@ -9,6 +10,6 @@ for /r tests/parser/declaration %%f in (*.test) do (
 	if errorlevel 1 (
 		echo fail %%f
 	) else (
-		echo passed
+		echo passed %%f
 	)
 )

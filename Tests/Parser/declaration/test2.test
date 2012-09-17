@@ -1,6 +1,0 @@
-int f(){
-	return 5;
-}
-
-struct f{
-} x;

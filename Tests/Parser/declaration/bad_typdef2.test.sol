@@ -1,17 +1,11 @@
-<--------TABLES-------->
-<---TABLE--->
-VARS::
-
-TYPES::
-char char
-
-double double
-
-int int
-
-void void
-
-T int
-
-Ошибка синтаксиса в строке 2 позиции 17: переопределение типа "T"
+<<<table #1>>>
+<tags>
+<types>
+int
+char
+double
+void
+typedef <T> <int
+<vars>
+Семантическая ошибка в строке 2, позиции 1: переопределение T
 

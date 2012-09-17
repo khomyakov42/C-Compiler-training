@@ -1,60 +1,65 @@
-<--------TABLES-------->
-<---TABLE--->
-VARS::
+<<<table #1>>>
+<tags>
+<types>
+int
+char
+double
+void
+<vars>
+var x type int
+└──{=}
+   ├──{x}
+   └──{5}
 
-x   int   
- = 5
+var f type function (){
+              <<<table #3>>>
+              <tags>
+              <types>
+              <vars>
+              └──{block}
+                 └──{return}
+                    └──{+}
+                       ├──{x}
+                       └──{4}
 
+} returned int
+var up type function (){
+               <<<table #5>>>
+               <tags>
+               <types>
+               <vars>
+               └──{block}
+                  └──{+=}
+                     ├──{x}
+                     └──{4}
 
-f   FUNC () { BLOCK     RETURN
-          "+"
-               x
-               4 } RETURNED int   
+} returned void
+var main type function (){
+                 <<<table #7>>>
+                 <tags>
+                 <types>
+                 <vars>
+                 var Z type pointer to array size 20 of pointer to  record
+                                                                      <<<table #8>>>
+                                                                      <tags>
+                                                                      <types>
+                                                                      <vars>
+                                                                      var x type int
+                                                                    endrecord
+                 var x type int
+                 └──{=}
+                    ├──{x}
+                    └──{0}
 
+                 └──{block}
+                    ├──{=}
+                    │  ├──{x}
+                    │  └──{call}
+                    │     └──{f}
+                    ├──{call}
+                    │  └──{up}
+                    └──{empty statement}
 
-up   FUNC () { BLOCK
-     "+="
-          x
-          4 } RETURNED void   
+} returned void
+Семантическая ошибка в строке 16, позиции 10: функция не должна возвращать значение
 
-
-main   FUNC () { BLOCK
-     "="
-          x
-          CALL
-               f     CALL
-          up     RETURN          x } RETURNED void   
-
-
-TYPES::
-char char
-
-double double
-
-int int
-
-void void
-
-<---TABLE--->
-VARS::
-
-TYPES::
-<---TABLE--->
-VARS::
-
-TYPES::
-<---TABLE--->
-VARS::
-
-Z   POINTER TO ARRAY () OF POINTER TO STRUCT $UNNAMED${
-vars::
-
-types::
-}   
-
-
-x   int   
- = 0
-
-
-TYPES::

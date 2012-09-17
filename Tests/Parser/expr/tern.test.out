@@ -1,48 +1,33 @@
-
-list
-     ter_oper
-          a
-          list
-               b
-          list
-               c
-list
-     "*"
-          7
-          list
-               ter_oper
-                    "=="
-                         a
-                         b
-                    list
-                         c
-                    list
-                         d
-list
-     ter_oper
-          "=="
-               "+"
-                    5
-                    a
-               b
-          list
-               c
-          list
-               d
-list
-     ter_oper
-          "=="
-               a
-               b
-          list
-               ter_oper
-                    "=="
-                         b
-                         c
-                    list
-                         1
-                    list
-                         0
-          list
-               2
+ÀÄÄ''
+   ÃÄÄ'ternary'
+   ³  ÃÄÄ'a'
+   ³  ÃÄÄ'b'
+   ³  ÀÄÄ'c'
+   ÃÄÄ'*'
+   ³  ÃÄÄ'7'
+   ³  ÀÄÄ'ternary'
+   ³     ÃÄÄ'=='
+   ³     ³  ÃÄÄ'a'
+   ³     ³  ÀÄÄ'b'
+   ³     ÃÄÄ'c'
+   ³     ÀÄÄ'd'
+   ÃÄÄ'ternary'
+   ³  ÃÄÄ'=='
+   ³  ³  ÃÄÄ'+'
+   ³  ³  ³  ÃÄÄ'5'
+   ³  ³  ³  ÀÄÄ'a'
+   ³  ³  ÀÄÄ'b'
+   ³  ÃÄÄ'c'
+   ³  ÀÄÄ'd'
+   ÀÄÄ'ternary'
+      ÃÄÄ'=='
+      ³  ÃÄÄ'a'
+      ³  ÀÄÄ'b'
+      ÃÄÄ'ternary'
+      ³  ÃÄÄ'=='
+      ³  ³  ÃÄÄ'b'
+      ³  ³  ÀÄÄ'c'
+      ³  ÃÄÄ'1'
+      ³  ÀÄÄ'0'
+      ÀÄÄ'2'
 

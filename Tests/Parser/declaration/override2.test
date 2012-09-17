@@ -1,8 +1,7 @@
-enum TT {A, B, C};
-typedef TT TENUM;
+typedef int TINT;
+typedef TINT TT;
 
 int main(){
-	struct TENUM
-	{} X;
+	struct TINT{int x;} X;
 	TT Y;
 }

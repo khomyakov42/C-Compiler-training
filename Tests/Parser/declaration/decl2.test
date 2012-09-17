@@ -1,3 +1,3 @@
 int (*x)();
 int (*y)(void*, int, int x, char y);
-char *(*(**z [][8])())[];
+char *(*(**z [1][8])())[2];

@@ -1,2 +1,5 @@
 int x = 6;
 int a[x];
+int b[5+3 * x];
+int c[;
+int d[];

@@ -1,37 +1,39 @@
-<--------TABLES-------->
-<---TABLE--->
-VARS::
+<<<table #1>>>
+<tags>
+<types>
+int
+char
+double
+void
+<vars>
+var x1 type int
+ÀÄÄ{=}
+   ÃÄÄ{x1}
+   ÀÄÄ{5}
 
-x1   int   
- = 5
+var x2 type char
+ÀÄÄ{=}
+   ÃÄÄ{x2}
+   ÀÄÄ{1}
 
+var x3 type double
+ÀÄÄ{=}
+   ÃÄÄ{x3}
+   ÀÄÄ{0}
 
-x2   char   
- = 1
+var x type int
+ÀÄÄ{=}
+   ÃÄÄ{x}
+   ÀÄÄ{1}
 
+var y type int
+ÀÄÄ{=}
+   ÃÄÄ{y}
+   ÀÄÄ{2}
 
-x3   double   
- = 0
+var z type int
+ÀÄÄ{=}
+   ÃÄÄ{z}
+   ÀÄÄ{3}
 
-
-x   int   
- = 1
-
-
-y   int   
- = 2
-
-
-z   int   
- = 3
-
-
-TYPES::
-char char
-
-double double
-
-int int
-
-void void
 

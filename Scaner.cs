@@ -7,162 +7,20 @@ using System.IO;
 
 namespace Compiler
 {
-	class Exception : System.Exception
-	{
-
-		public Exception(string s = "") : base(s) { }
-	}
-
-	class Token
-	{
-		public enum Type
-		{
-			LPAREN , RPAREN, LBRACKET, RBRACKET, LBRACE, RBRACE, COMMA, OP_TILDE, QUESTION, SEMICOLON,
-			OP_DIV, OP_DIV_ASSIGN, OP_MOD, OP_MOD_ASSIGN, OP_STAR, OP_MUL_ASSIGN, OP_NOT, OP_NOT_EQUAL, OP_EQUAL, OP_ASSIGN,
-			OP_XOR, OP_XOR_ASSIGN, OP_PLUS, OP_PLUS_ASSIGN, OP_INC, OP_SUB, OP_SUB_ASSIGN, OP_DEC, OP_REF, OP_BIT_OR,
-			OP_BIT_OR_ASSIGN, OP_OR, OP_BIT_AND, OP_BIT_AND_ASSIGN, OP_AND, OP_LESS, OP_LESS_OR_EQUAL, OP_L_SHIFT,
-			OP_L_SHIFT_ASSIGN, OP_MORE, OP_MORE_OR_EQUAL, OP_R_SHIFT, OP_R_SHIFT_ASSIGN, OP_DOT, OP_ELLIPSIS, COLON,
-			KW_BREAK, KW_WORD, KW_CASE, KW_CHAR, KW_CONST, KW_CONTINUE, KW_DEFAULT, KW_DO, KW_DOUBLE, KW_ELSE, KW_ENUM, KW_EXTERN,
-			KW_FOR, KW_IF, KW_INLINE, KW_INT, KW_REGISTER, KW_RESTRICT, KW_RETURN, KW_SIZEOF, KW_STRUCT, KW_SWITCH, 
-			KW_TYPEDEF, KW_UNION, KW_VOID, KW_WHILE, KW_STATIC,
-
-			IDENTIFICATOR, OPERATOR, SEPARATOR, EOF, CONST_INT, CONST_DOUBLE, CONST_CHAR, CONST_STRING, VOID, NONE, KEYWORLD
-		};
-
-		public static readonly Hashtable terms, type_to_terms;
-		public int pos = -1, line = -1;				
-		public Type type = Type.NONE;						
-		public string strval = "";				
-													
-		static Token()
-		{
-			terms = new Hashtable();
-			type_to_terms = new Hashtable();
-
-			terms["("] = Type.LPAREN;
-			terms[")"] = Type.RPAREN;
-			terms["["] = Type.LBRACKET;
-			terms["]"] = Type.RBRACKET;
-			terms["{"] = Type.LBRACE;
-			terms["}"] = Type.RBRACE;
-			terms[","] = Type.COMMA;
-			terms["~"] = Type.OP_TILDE;
-			terms["?"] = Type.QUESTION;
-			terms[";"] = Type.SEMICOLON;
-			terms["/"] = Type.OP_DIV;
-			terms["/="] = Type.OP_DIV_ASSIGN;
-			terms["%"] = Type.OP_MOD;
-			terms["%="] = Type.OP_MOD_ASSIGN;
-			terms["*"] = Type.OP_STAR;
-			terms["*="] = Type.OP_MUL_ASSIGN;
-			terms["!"] = Type.OP_NOT;
-			terms["!="] = Type.OP_NOT_EQUAL;
-			terms["="] = Type.OP_ASSIGN;
-			terms["=="] = Type.OP_EQUAL;
-			terms["^"] = Type.OP_XOR;
-			terms["^="] = Type.OP_XOR_ASSIGN;
-			terms["+"] = Type.OP_PLUS;
-			terms["+="] = Type.OP_PLUS_ASSIGN;
-			terms["++"] = Type.OP_INC;
-			terms["-"] = Type.OP_SUB;
-			terms["-="] = Type.OP_SUB_ASSIGN;
-			terms["--"] = Type.OP_DEC;
-			terms["->"] = Type.OP_REF;
-			terms["|"] = Type.OP_BIT_OR;
-			terms["|="] = Type.OP_BIT_OR_ASSIGN;
-			terms["||"] = Type.OP_OR;
-			terms["&"] = Type.OP_BIT_AND;
-			terms["&="] = Type.OP_BIT_AND_ASSIGN;
-			terms["&&"] = Type.OP_AND;
-			terms["<"] = Type.OP_LESS;
-			terms["<="] = Type.OP_LESS_OR_EQUAL;
-			terms["<<"] = Type.OP_L_SHIFT;
-			terms["<<="] = Type.OP_L_SHIFT_ASSIGN;
-			terms[">"] = Type.OP_MORE;
-			terms[">="] = Type.OP_MORE_OR_EQUAL;
-			terms[">>"] = Type.OP_R_SHIFT;
-			terms[">>="] = Type.OP_R_SHIFT_ASSIGN;
-			terms["."] = Type.OP_DOT;
-			terms["..."] = Type.OP_ELLIPSIS;
-			terms[":"] = Type.COLON;
-			terms["break"] = Type.KW_BREAK;
-			terms["char"] = Type.KW_CHAR;
-			terms["const"] = Type.KW_CONST;
-			terms["continue"] = Type.KW_CONTINUE;
-			terms["do"] = Type.KW_DO;
-			terms["double"] = Type.KW_DOUBLE;
-			terms["else"] = Type.KW_ELSE;
-			terms["enum"] = Type.KW_ENUM;
-			terms["extern"] = Type.KW_EXTERN;
-			terms["for"] = Type.KW_FOR;
-			terms["if"] = Type.KW_IF;
-			terms["int"] = Type.KW_INT;
-			terms["register"] = Type.KW_REGISTER;
-			terms["return"] = Type.KW_RETURN;
-			terms["sizeof"] = Type.KW_SIZEOF;
-			terms["static"] = Type.KW_STATIC;
-			terms["struct"] = Type.KW_STRUCT;
-			terms["typedef"] = Type.KW_TYPEDEF;
-			terms["void"] = Type.KW_VOID;
-			terms["while"] = Type.KW_WHILE;
-
-			foreach (DictionaryEntry de in terms)
-			{
-				type_to_terms[de.Value] = de.Key;
-			}
-			type_to_terms[Type.IDENTIFICATOR] = "идентификатор";
-		}
-
-		public Token(Type _type, string _strval = null)
-		{
-			if (type_to_terms.ContainsKey(_type) && _strval == null)
-			{
-				strval = (string)type_to_terms[_type];
-			}
-
-			if (_strval != null)
-			{
-				strval = _strval;
-			}
-
-			type = _type;
-		}
-
-		public Token(int pos, int line, Type type, string val)
-		{
-			this.line = line;
-			this.pos = pos;
-			this.type = type != Type.OPERATOR && type != Type.SEPARATOR ? type: (Type)Token.terms[val];
-			this.strval = val.Replace("\n", "\\n");
-		}
-
-		public Token() { pos = 1; line = 1; type = Type.NONE; strval = ""; }
-
-		public override string ToString()
-		{
-			return this.type + " " + this.line + " " + this.pos + " " + this.strval;
-		}
-
-		public string GetStrVal()
-		{
-			return strval;
-		}
-	}
-
    class Scaner
    {
 		public class Exception : Compiler.Exception
 		{
-			public Exception(string message, int line, int pos) : 
-				base("Лексическая ошибка в строке " + line + " позиции " + pos + ": " + message) { }
+			public Exception(string message, int index, int line) 
+				: base("Лексическая ошибка", message, index, line) { }
 		}
 
-		class Buffer: StreamReader
+		private class Buffer: StreamReader
 		{
 			public const int EOF = -1;
 			private int pos = 1, line = 1;
 
-			public Buffer(Stream stream) : base(stream) {}
+			public Buffer(Stream stream) : base(stream) { }
 
 			public override int Read()
 			{
@@ -189,16 +47,16 @@ namespace Compiler
 			}
 		}
 
-		Buffer buf;
-		int line = 1, pos = 1;
-		string val;
-		Token.Type type;
+		private Buffer buf;
+		private int line = 1, pos = 1;
+		private string val;
+		private Token.Type type;
 
-		Token next_token = null;
-		Scaner.Exception error = null;
+		private Token next_token = null;
+		private Scaner.Exception error = null;
 
-      public Scaner(System.IO.Stream istream) { 
-			buf = new Buffer(istream);
+      public Scaner(System.IO.StreamReader istream) {
+			buf = new Buffer(istream.BaseStream);
 			try
 			{
 				next_token = Next();
@@ -244,7 +102,7 @@ namespace Compiler
 
 		private bool IsWhite(int ch)
 		{
-			return char.IsWhiteSpace((char)ch);
+			return char.IsWhiteSpace((char)ch) && ch != -1;
 		}
 
 		private bool IsAlpha(int ch)
@@ -269,22 +127,22 @@ namespace Compiler
 
 		private bool IsEnter(string s, int ch)
 		{
-			return s.IndexOf((char)ch) > -1;
+			return s.IndexOf((char)ch) > -1 && ch != -1;
 		}
 
 		private bool IsSeparator(int ch)
 		{
-			return "{};,()".IndexOf((char)ch) > -1;
+			return "{};,()".IndexOf((char)ch) > -1 && ch != -1;
 		}
 
 		private bool IsOperator(int ch)
 		{
-			return "+-=/%*&|^~?!.:<>[]".IndexOf((char)ch) > -1;
+			return "+-=/%*&|^~?!.:<>[]".IndexOf((char)ch) > -1 && ch != -1;
 		}
 
 		private bool IsPermissed(int ch)
 		{
-			return IsAlpha(ch) || IsDecimal(ch) || IsWhite(ch) || IsSeparator(ch) || IsOperator(ch);
+			return IsAlpha(ch) || IsDecimal(ch) || IsWhite(ch) || IsSeparator(ch) || IsOperator(ch) || ch == -1;
 		}
 
 #endregion
@@ -630,7 +488,7 @@ namespace Compiler
 			{
 				GetIdentificator();
 
-				Object keyword = Token.terms[val];
+				Object keyword = Token.Terms[val];
 				type = keyword == null? Token.Type.IDENTIFICATOR: (Token.Type)keyword;
 			}
 			else if (ch == '.')

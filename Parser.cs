@@ -6,101 +6,37 @@ using System.Text;
 
 namespace Compiler
 {
-	class Pair<T1, T2>
-	{
-		public T1 first;
-		public T2 last;
-
-		public Pair(T1 _first, T2  _last)
-		{
-			first = _first;
-			last = _last;
-		}
-
-		public Pair(){
-			first = default(T1);
-			last = default(T2);
-		}
-	}
-
-	class Three<T1, T2, T3>: Pair<T1, T3>{
-		public T2 middle;
-		public Three(T1 _first, T2 _middle, T3 _last)
-		{
-			first = _first;
-			middle = _middle;
-			last = _last;
-		}
-
-		public Three(){
-			first = default(T1);
-			middle = default(T2);
-			last = default(T3);
-		}
-	}
-
 	class Parser
 	{
-		public class Exception : Compiler.Exception
-		{
-			public Exception(string message, int line, int pos) :
-				base("Ошибка синтаксиса в строке " + line + " позиции " + pos + ": " + message + "\n") {}
-		}
-
-		public class Logger
-		{
-			List<System.Exception> list;
-
-			public Logger()
-			{
-				this.list = new List<System.Exception>();
-			}
-
-			public void Add(System.Exception e)
-			{
-				if(e != null)
-				{
-					list.Add(e);
-				}
-			}
-
-			override public string ToString()
-			{
-				string s = "";
-				foreach (var e in this.list)
-				{
-					s += e.Message + '\n';
-				}
-
-				return s;
-			}
-
-			public bool isEmpty()
-			{
-				return list.Count == 0;
-			}
-		}
-
-		Scaner scan;
 		public Logger logger;
-		public StackTable tables = new StackTable();
-		bool parse_const_expr = false;
-		int count_string = 0;
-
-		private Token CheckToken(Token t, Token.Type type, bool get_next_token = false)
-		{
-			SynObj.CheckToken(t, type, "требуется \"" + Token.type_to_terms[type].ToString() + '"');
-
-			return get_next_token ? scan.Read() : t;
-		}
-
+		public Symbols.StackTable tstack;
+		private Scaner scan;
+		private bool parse_const_expr = false;
+		private int count_string = 0;
+		private bool parse_block = false;
+		private bool parse_args_declaraton = false;
+		private Symbols.Type ret_func_type = null;
+		private bool parse_cycle = false;
+		private Syntax.Root tree;
+		
 		public Parser(Scaner sc)
 		{
-			scan = sc;
-			logger = new Logger();
+			this.scan = sc;
+			this.tree = new Syntax.Root();
+			this.logger = new Logger();
+			this.tstack = new Symbols.StackTable();
+			this.InitTableStack();
 		}
 
-		private void PassExpr()
+		private void InitTableStack()
+		{
+			tstack.AddSymbol(new Symbols.INT("int", 0, 0));
+			tstack.AddSymbol(new Symbols.CHAR("char", 0, 0));
+			tstack.AddSymbol(new Symbols.DOUBLE("double", 0, 0));
+			tstack.AddSymbol(new Symbols.VOID("void", 0, 0));
+		}
+
+		private void PassExpr(String stop_chars = ";")
 		{
 			Token t = new Token();
 			int count_br = 0;
@@ -124,43 +60,44 @@ namespace Compiler
 					logger.Add(e);
 				}
 			}
-			while (t.type != Token.Type.EOF && (t.type != Token.Type.SEMICOLON && t.type != Token.Type.RBRACE || count_br != 0));
-			
+			while (!(t.type == Token.Type.EOF || 
+				(t.GetStrVal().IndexOf(stop_chars) != -1 && !this.parse_args_declaraton) || 
+				(this.parse_block && (t.type == Token.Type.RBRACE || count_br <= 0)) ||
+				(this.parse_args_declaraton && (t.type == Token.Type.COMMA || scan.Peek().type == Token.Type.RPAREN))
+			));
 		}
 
-		private void ToHandlerException(Compiler.Exception e)
+		private Token CheckToken(Token t, Token.Type type, bool get_next_token = false)
 		{
-			if (e is SynObj.Exception)
+			Syntax.Object.CheckToken(t, type, "требуется \"" + Token.Types[type].ToString() + '"');
+
+			return get_next_token ? scan.Read() : t;
+		}
+		
+		private void ToHandlerException(Compiler.Exception e, String stop_chars = ";")
+		{
+			if (e.line == -1 && e.index == -1)
 			{
-				this.logger.Add(new Parser.Exception(e.Message, scan.GetLine(), scan.GetPos()));
-				PassExpr();
+				e.line = this.scan.GetLine();
+				e.index = this.scan.GetPos();
 			}
-			else if (e is Symbol.Exception)
+
+			this.logger.Add(e);
+			if (!(e is Symbols.Exception))
 			{
-				this.logger.Add(new Parser.Exception(e.Message, ((Symbol.Exception)e).line, ((Symbol.Exception)e).pos));
-				if (!e.Data.Contains("delayed"))
-				{
-					PassExpr();
-				}
-			}
-			else if (e is Scaner.Exception)
-			{
-				scan.Pass();
-				this.logger.Add(e);
-				PassExpr();
+				this.PassExpr(stop_chars);
 			}
 		}
-
+		
 		public void Parse()
 		{
-			Root tree = new Root();
 			do
 			{
 				try
 				{
 					while (scan.Peek().type != Token.Type.EOF)
 					{
-						ParseDeclaration(false);
+						ParseDeclaration();
 					}
 				}
 				catch (Compiler.Exception e)
@@ -170,111 +107,99 @@ namespace Compiler
 
 			}
 			while (scan.Peek().type != Token.Type.EOF);
-
-		//	Console.Write(tables.ToString());
-		//	Console.Write(logger.ToString());
 		}
 
-		#region parse expression
-
-		private SynExpr ParseExpression(bool bind = true, bool parse_list = false)
+		public void PrintTree(StreamWriter srteam) 
 		{
-			SynExpr node = null;
-			List<SynExpr> expr_list = new List<SynExpr>();
+			this.tstack.Print(srteam);
+		}
 
-			while(true)
-			{
-				node = ParseUnaryExpr();
+#region parse expression
 
-				if (node == null && !bind)
-				{
-					return new ExprList(expr_list);
-				}
-				
+		private Syntax.Expression ParseExpression()
+		{
+			Syntax.Expression node = ParseUnaryExpr();
+			if (node != null) {
 				node = ParseBinaryOper(0, node);
-				if (node != null)
-				{
-					expr_list.Add(node);
-				}
+			}
+			return node;
+		}
 
-				if (scan.Peek().type != Token.Type.COMMA || !parse_list)
-				{
-					break;
-				}
+		private List<Syntax.Expression> ParseArgExpressionList()
+		{
+			List<Syntax.Expression> list = new List<Syntax.Expression>();
 
+			while (true)
+			{
+				list.Add(ParseAssignmentExpression());
+				if (scan.Peek().type != Token.Type.COMMA)
+				{
+					return list;
+				}
 				scan.Read();
 			}
-
-			if (parse_list)
-			{
-				return expr_list.Count == 0 ? null : new ExprList(expr_list);
-			}
-
-			return expr_list.Count == 0 ? null : (SynExpr)expr_list[0];
 		}
 
-		private SynExpr ParseBinaryOper(int level, SynExpr lnode)
+		private Syntax.Expression ParseAssignmentExpression()
 		{
-			SynExpr root = null;
+			Syntax.Expression node = ParseUnaryExpr();
+			if (node == null)
+			{
+				return null;
+			}
+			return ParseBinaryOper(0, node, true);
+		}
+
+		private Syntax.Expression ParseBinaryOper(int level, Syntax.Expression lnode, bool stop_if_comma = false)
+		{
+			Syntax.Expression root = null;
 
 			while (true)
 			{
 
-				SynExpr.CheckSynObj(lnode);
+				Syntax.Object.CheckObject(lnode);
 
 				if (scan.Peek().type == Token.Type.QUESTION)
 				{
 					scan.Read();
-					SynExpr expr = ParseExpression();
+					Syntax.Expression expr = ParseExpression();
 					CheckToken(scan.Peek(), Token.Type.COLON, true);
-
-					root = new TerOper(lnode);
-					((TerOper)root).SetTrueExpr(expr);
-					((TerOper)root).SetFalseExpr(ParseExpression());
+					root = new Syntax.Ternary(lnode);
+					((Syntax.Ternary)root).SetBranchTrue(expr);
+					((Syntax.Ternary)root).SetBranchFalse(ParseExpression());
 					lnode = root;
 				}
 
 				int op_level = GetOperatorPriority(scan.Peek());
 
-				if (op_level < level)
+				if (op_level < level || (stop_if_comma && scan.Peek().type == Token.Type.COMMA))
 				{
 					return lnode;
 				}
 
 				if (this.parse_const_expr && op_level == 2)
 				{
-					throw new SynObj.Exception("недопустимый оператор в константном выражении");
+					throw new Syntax.Exception("недопустимый оператор в константном выражении", scan.GetPos(), scan.GetLine());
 				}
 
 				Token oper = scan.Read();
 
-				SynExpr rnode = (SynExpr)SynObj.CheckSynObj(ParseUnaryExpr());
+				Syntax.Expression rnode = ParseUnaryExpr();
 
 				int level_next_oper = GetOperatorPriority(scan.Peek());
 
-				if (op_level < level_next_oper)
-				{
-					rnode = ParseBinaryOper(op_level + 1, rnode);
-				}
-
-				if (GetOperatorPriority(oper) == 2)// assign operator
-				{
-					root = new AssignOper(oper);
-					((AssignOper)root).SetLeftOperand(lnode);
-					((AssignOper)root).SetRightOperand(rnode);
-				}
-				else
-				{
-					root = new BinaryOper(oper);
-					((BinaryOper)root).SetLeftOperand(lnode);
-					((BinaryOper)root).SetRightOperand(rnode);
-				}
-
 				try
 				{
-					((BinaryOper)root).Check();
+					if (op_level < level_next_oper)
+					{
+						rnode = ParseBinaryOper(op_level + 1, rnode, stop_if_comma);
+					}
+				
+					root = new Syntax.BinaryOperator(oper);
+					((Syntax.BinaryOperator)root).SetLeftOperand(lnode);
+					((Syntax.BinaryOperator)root).SetRightOperand(rnode);
 				}
-				catch (Symbol.Exception e)
+				catch (Syntax.Exception e)
 				{
 					ToHandlerException(e);
 				}
@@ -283,50 +208,41 @@ namespace Compiler
 			}
 		}
 
-		private SynExpr ParsePrimaryExpr()
+		private Syntax.Expression ParsePrimaryExpr()
 		{
-			SynExpr res = null;
+			Syntax.Expression res = null;
 			switch (scan.Peek().type)
 			{
 				case Token.Type.CONST_CHAR:
-					res = new ConstExpr(scan.Read(), new SymTypeChar());
+					res = new Syntax.Const(scan.Read(), tstack.GetType("char"));
 					break;
 
 				case Token.Type.CONST_DOUBLE:
-					res = new ConstExpr(scan.Read(), new SymTypeDouble());
+					res = new Syntax.Const(scan.Read(), tstack.GetType("double"));
 					break;
 
 				case Token.Type.CONST_INT:
-					res = new ConstExpr(scan.Read(), new SymTypeInt());
+					res = new Syntax.Const(scan.Read(), tstack.GetType("int"));
 					break;
 
 				case Token.Type.CONST_STRING:
-					count_string++;
-					Token t = scan.Read();
-					SymVarConst var = new SymVarConst(new Token(Token.Type.CONST_STRING, "str" + count_string));
-
-					SymTypeArray str = new SymTypeArray(tables.GetType("char"));
-					str.SetSize(new ConstExpr(tables.GetType("int"), "" + (t.strval.Length + 1)));
-					var.SetType(str);
-
-					res = new ConstString(var);
-					var.SetInitValue(new SynInit(new ConstExpr(new SymTypePointer(new SymTypeChar()), t.strval)));
-					tables.AddConst(var);
+					this.count_string++;
+					res = new Syntax.Const(scan.Read(), new Symbols.POINTER(tstack.GetType("char")));
 					break;
 
 				case Token.Type.IDENTIFICATOR:
-					SymVar v = null;
-					if (!tables.ContainsIdentifier(scan.Peek().strval) && !tables.ContainsConst(scan.Peek().strval))
+					Token t = scan.Read();
+					Symbols.Var v = new Symbols.SuperVar();
+					try
 					{
-						tables.AddVar(new SymSuperVar(scan.Peek()));
-						this.logger.Add(new Symbol.Exception(scan.Peek().strval + ": необъявленный идентификатор", scan.GetLine(), scan.GetPos()));
-						res = new IdentExpr(scan.Peek(), tables.GetIdentifier(scan.Read().strval));
-						break;
+						v = tstack.GetVariable(t);
+					}
+					catch (Symbols.Exception e)
+					{
+						this.logger.Add(e);
 					}
 
-					v = tables.ContainsConst(scan.Peek().strval) ? tables.GetConst(scan.Peek().strval) : tables.GetIdentifier(scan.Peek().strval);
-					Token id = scan.Read();
-					res = new IdentExpr(id, v);
+					res = new Syntax.Identifier(t, v);
 					break;
 
 				case Token.Type.LPAREN:
@@ -336,108 +252,55 @@ namespace Compiler
 					CheckToken(scan.Peek(), Token.Type.RPAREN, true);
 					break;
 			}
-
-			if (res != null)
-			{
-				res.Check();
-			}
-
 			return res;
 		}
 
-		private SynExpr ParsePostfixExpr(SynExpr expr_node = null)
+		private Syntax.Expression ParsePostfixExpr(Syntax.Expression expr_node = null)
 		{
-			SynExpr node = expr_node == null? ParsePrimaryExpr(): expr_node, res = null;
+			Syntax.Expression node = expr_node == null? this.ParsePrimaryExpr(): expr_node, res = null;
 
 			while(true){
 				switch (scan.Peek().type)
 				{ 
 					case Token.Type.OP_INC:
 					case Token.Type.OP_DEC:
-						res = new PostfixOper(scan.Read());
-						((PostfixOper)res).SetOperand(node);
+						res = new Syntax.UnaryOperator(scan.Read(), false);
+						((Syntax.UnaryOperator)res).SetOperand(node);
 						break;
 
 					case Token.Type.OP_DOT:
 					case Token.Type.OP_REF:
-						if (scan.Peek().type == Token.Type.OP_DOT)
-						{
-							res = new DotOper(scan.Read());
-						}
-						else
-						{
-							res = new RefOper(scan.Read());
-						}
-
-						SymType t = node.getType();
-						((DotOper)res).SetParent(node);
-						Token id = null;
-						try
-						{
-							CheckToken(scan.Peek(), Token.Type.IDENTIFICATOR);
-							id = scan.Read();
-							IdentExpr ident = null;
-
-							if (t is SymTypeStruct && ((SymTypeStruct)t).fields.ContainsIdentifier(id.strval))
-							{
-								ident = new IdentExpr(id, ((SymTypeStruct)t).fields.GetIdentifier(id.strval));
-							}
-							else
-							{
-								ident = new IdentExpr(id);
-							}
-
-							((DotOper)res).SetChild(ident);
-							((DotOper)res).Check();
-						}
-						catch (Symbol.Exception e)
-						{
-							((DotOper)res).SetChild(new IdentExpr(id == null? scan.Peek(): id, new SymSuperVar()));
-							ToHandlerException(e);
-						}
+						res = new Syntax.Refference(scan.Read());
+						((Syntax.Refference)res).SetExpression(node);
+						CheckToken(scan.Peek(), Token.Type.IDENTIFICATOR);
+						((Syntax.Refference)res).SetRefference(new Syntax.Identifier(scan.Read()));
 						break;
 
 					case Token.Type.LPAREN:
-						res = new CallOper(node, scan.GetLine(), scan.GetPos());
-						scan.Read();
-
-						if (scan.Peek().type == Token.Type.RPAREN)
-						{
-							scan.Read();
-							break;
-						}
-
-						ExprList args = (ExprList)ParseExpression(true, true);
-						foreach(var arg in args.list)
-						{
-							((CallOper)res).AddArgument(arg);
-						}
+						res = new Syntax.Call(scan.Read());
+						((Syntax.Call)res).SetOperand(node);
 						try
 						{
-							res.Check();
+							if (scan.Peek().type == Token.Type.RPAREN)
+							{
+								((Syntax.Call)res).SetArgumentList(new List<Syntax.Expression>());
+								scan.Read();
+								break;
+							}
+							((Syntax.Call)res).SetArgumentList(this.ParseArgExpressionList());
 						}
-						catch (Symbol.Exception e)
+						catch (Symbols.Exception e)
 						{
-							ToHandlerException(e);
+							this.logger.Add(e);
 						}
 
 						CheckToken(scan.Peek(), Token.Type.RPAREN, true);
-
 						break;
 
 					case Token.Type.LBRACKET:
-						res = new SqBrkOper(scan.Read());
-						((SqBrkOper)res).SetParent(node);
-						((SqBrkOper)res).SetChild(ParseExpression());
-						try
-						{
-							res.Check();
-						}
-						catch(Symbol.Exception e)
-						{
-							ToHandlerException(e);
-						}
-
+						res = new Syntax.Refference(scan.Read());
+						((Syntax.Refference)res).SetExpression(node);
+						((Syntax.Refference)res).SetRefference(this.ParseExpression());
 						CheckToken(scan.Peek(), Token.Type.RBRACKET, true);
 						break;
 						
@@ -452,61 +315,55 @@ namespace Compiler
 			}
 		}
 
-		private SynExpr ParseUnaryExpr(bool prev_is_unary_oper = true)
+		private Syntax.Expression ParseUnaryExpr()
 		{
-			PrefixOper node = null;
+			Syntax.UnaryOperator node = null;
 
 			switch (scan.Peek().type)
 			{
 				case Token.Type.OP_INC:
 				case Token.Type.OP_DEC:
-					node = new PrefixOper(scan.Read());
-					node.SetOperand(ParseUnaryExpr(false));
-
-					return node;
-
 				case Token.Type.OP_BIT_AND:
 				case Token.Type.OP_STAR:
 				case Token.Type.OP_PLUS:
 				case Token.Type.OP_SUB:
 				case Token.Type.OP_TILDE:
 				case Token.Type.OP_NOT:
-					node = new PrefixOper(scan.Read());
-					node.SetOperand(ParseUnaryExpr());
+					node = new Syntax.UnaryOperator(scan.Read());
+					node.SetOperand(this.ParseUnaryExpr());
 					return node;
-				
+
 				case Token.Type.LPAREN:
-					int l = scan.GetLine(), p = scan.GetPos();
-					scan.Read();
-					SynExpr res = null;
+					Syntax.Expression res = null;
+					Token t = scan.Read();
 
 					if (IsType(scan.Peek()))
 					{
-						res = new CastExpr(ParseType(), l, p);
+						res = new Syntax.Cast(t);
+						Symbols.ParamVar var = ParseParameterDeclaration(); //this is hack
+						((Syntax.Cast)res).SetTypeCast(var.GetType());
 						CheckToken(scan.Peek(), Token.Type.RPAREN, true);
-						((CastExpr)res).SetOperand(ParseUnaryExpr());
+						((Syntax.Cast)res).SetOperand(ParseUnaryExpr());
 						return res;
 					}
 
-					res = ParseExpression(true, true);
+					res = ParseExpression();
 					CheckToken(scan.Peek(), Token.Type.RPAREN, true);
 					return ParsePostfixExpr(res);
 
 				case Token.Type.KW_SIZEOF:
-					Token kw = scan.Read();
+					node = new Syntax.UnaryOperator(scan.Read());
 
 					if (scan.Peek().type != Token.Type.LPAREN)
 					{
-						node = new SizeofOper(kw);
-						node.SetOperand(ParseUnaryExpr(false));
+						node.SetOperand(ParseUnaryExpr());
 						return node;
 					}
 
 					scan.Read();
-					node = new SizeofOper(kw);
 					if (IsType(scan.Peek()))
 					{
-						((SizeofOper)node).SetOperand(ParseType());
+						((Syntax.UnaryOperator)node).SetOperand(new Syntax.Identifier(scan.Read()));
 					}
 					else
 					{
@@ -565,86 +422,151 @@ namespace Compiler
 				case Token.Type.OP_SUB_ASSIGN:
 				case Token.Type.OP_XOR_ASSIGN:
 					return 2;
+				case Token.Type.COMMA:
+					return 1;
 				default:
 					return -1;
 			}
 		}
 
-		private SynExpr ParseConstExpr(bool is_list = true)
+		private bool IsType(Token t)
+		{
+			switch (t.type)
+			{
+				case Token.Type.KW_STRUCT:
+				case Token.Type.KW_ENUM:
+					return true;
+				
+				default:
+					Symbols.Type tt = null;
+					if (tstack.ContainsType(t.GetStrVal())) 
+					{
+						tt = tstack.GetType(t.GetStrVal());
+					}
+					return tt != null && !(tt is Symbols.Func);
+			}
+		}
+
+		private Syntax.Expression ParseConstExpr()
 		{
 			this.parse_const_expr = true;
-			SynExpr res = null;
-			res = ParseExpression(true, is_list);
+			Syntax.Expression node = ParseUnaryExpr();
+			if (node != null)
+			{
+				node = ParseBinaryOper(0, node, true);
+			}
 			this.parse_const_expr = false;
 
-			return res;
+			return node;
 		}
 
-		#endregion
+#endregion
 
-		#region parse statment
+#region parse statment
 
-		private SynObj ParseStmExpression()
+		private Syntax.Statement ParseStmExpression()
 		{
-			StmtExpr res = new StmtExpr(ParseExpression(false, true));
+			Syntax.Expression expr;
+			try
+			{
+				expr = ParseExpression();
+			}
+			catch (Exception e)
+			{
+				if (scan.Peek().type == Token.Type.SEMICOLON) { scan.Read(); }
+				throw e;
+			}
 			CheckToken(scan.Peek(), Token.Type.SEMICOLON, true);
-			return res;
+			return new Syntax.StatementExpression(expr);
 		}
 
-		private SynObj ParseStmt()
+		private Syntax.Statement ParseStmt()
 		{
-			SynObj node = null;
+			Syntax.Statement node = null;
+			const string NOT_CYCLE = "оператор можно использовать только внутри цикла";
 
 			switch (scan.Peek().type)
 			{
 				case Token.Type.KW_WHILE:
-					scan.Read();
-					CheckToken(scan.Peek(), Token.Type.LPAREN, true);
+					this.parse_cycle = true;
+					try
+					{
+						scan.Read();
+						CheckToken(scan.Peek(), Token.Type.LPAREN, true);
 
-					node = new StmtWHILE(ParseExpression());
-					
-					CheckToken(scan.Peek(), Token.Type.RPAREN, true);
-					((StmtWHILE)node).SetBlock(ParseStmt());
+						Syntax.Expression cond = ParseExpression();
+						node = new Syntax.WHILE(cond);
+
+						CheckToken(scan.Peek(), Token.Type.RPAREN, true);
+						((Syntax.WHILE)node).SetCycleStatement(ParseStmt());
+					}
+					catch (Exception e)
+					{
+						this.parse_cycle = false;
+						throw e;
+					}
 					break;
 
 				case Token.Type.KW_DO:
-					scan.Read();
-					
-					node = new StmtDO(ParseStmt());
-					CheckToken(scan.Peek(), Token.Type.KW_WHILE, true);
-					CheckToken(scan.Peek(), Token.Type.LPAREN, true);
-					
-					((StmtDO)node).SetCond(ParseExpression());
-					CheckToken(scan.Peek(), Token.Type.RPAREN, true);
-					CheckToken(scan.Peek(), Token.Type.SEMICOLON, true);
+					this.parse_cycle = true;
+					try
+					{
+						scan.Read();
+
+						node = new Syntax.DO(ParseStmt());
+						CheckToken(scan.Peek(), Token.Type.KW_WHILE, true);
+						CheckToken(scan.Peek(), Token.Type.LPAREN, true);
+
+						((Syntax.DO)node).SetCondition(ParseExpression());
+						CheckToken(scan.Peek(), Token.Type.RPAREN, true);
+						CheckToken(scan.Peek(), Token.Type.SEMICOLON, true);
+					}
+					catch (Exception e)
+					{
+						this.parse_cycle = false;
+						throw e;
+					}
 					break;
 
 				case Token.Type.KW_FOR:
-					scan.Read();
-					CheckToken(scan.Peek(), Token.Type.LPAREN, true);
-					node = new StmtFOR();
-					((StmtFOR)node).SetCounter(ParseStmExpression());
-					((StmtFOR)node).SetCond(ParseStmExpression());
-
-					if (scan.Peek().type != Token.Type.RPAREN)
+					this.parse_cycle = true;
+					try
 					{
-						((StmtFOR)node).SetIncriment(ParseExpression());
-					}
+						scan.Read();
+						CheckToken(scan.Peek(), Token.Type.LPAREN, true);
+						node = new Syntax.FOR();
+						((Syntax.FOR)node).SetCounter(
+							((Syntax.StatementExpression)ParseStmExpression()).GetExpression()
+						);
+						((Syntax.FOR)node).SetCondition(
+							((Syntax.StatementExpression)ParseStmExpression()).GetExpression()
+						);
 
-					CheckToken(scan.Peek(), Token.Type.RPAREN, true);
-					((StmtFOR)node).SetBlock(ParseStmt());
+						if (scan.Peek().type != Token.Type.RPAREN)
+						{
+							((Syntax.FOR)node).SetIncriment(ParseExpression());
+						}
+
+						CheckToken(scan.Peek(), Token.Type.RPAREN, true);
+						((Syntax.FOR)node).SetCycleStatement(ParseStmt());
+					}
+					catch (Exception e)
+					{
+						this.parse_cycle = false;
+						throw e;
+					}
 					break;
 
 				case Token.Type.KW_IF:
 					scan.Read();
 					CheckToken(scan.Peek(), Token.Type.LPAREN, true);
-					node = new StmtIF(ParseExpression());
+					node = new Syntax.IF(ParseExpression());
 					CheckToken(scan.Peek(), Token.Type.RPAREN, true);
-					((StmtIF)node).SetBranchTrue(ParseStmt());
+					((Syntax.IF)node).SetBranchTrue(ParseStmt());
 					if (scan.Peek().type == Token.Type.KW_ELSE)
 					{
 						scan.Read();
-						((StmtIF)node).SetBranchFalse(ParseStmt());
+						((Syntax.IF)node).SetBranchFalse(ParseStmt());
 					}
 					break;
 
@@ -654,28 +576,61 @@ namespace Compiler
 
 				case Token.Type.KW_RETURN:
 					scan.Read();
+
 					if (scan.Peek().type != Token.Type.SEMICOLON)
 					{
-						node = new StmtRETURN(ParseExpression());
+						node = new Syntax.RETURN(this.ret_func_type);
+						((Syntax.RETURN)node).SetValue(ParseExpression());
 					}
 					else
 					{
-						node = new StmtRETURN();
+						node = new Syntax.RETURN(this.ret_func_type);
+						((Syntax.RETURN)node).SetValue(new Syntax.EmptyExpression());
 					}
 
 					CheckToken(scan.Peek(), Token.Type.SEMICOLON, true);
 					break;
 
 				case Token.Type.KW_BREAK:
-					scan.Read();
-					node = new StmtBREAK();
-					CheckToken(scan.Peek(), Token.Type.SEMICOLON, true);
+					if (!this.parse_cycle)
+					{
+						this.logger.Add(new Syntax.Exception(NOT_CYCLE, scan.GetPos(), scan.GetLine()));
+					}
+
+					try
+					{
+						scan.Read();
+						node = new Syntax.BREAK();
+						CheckToken(scan.Peek(), Token.Type.SEMICOLON, true);
+					}
+					catch (Exception e)
+					{
+						if (this.parse_cycle)
+						{
+							throw e;
+						}
+					}
 					break;
 
 				case Token.Type.KW_CONTINUE:
-					scan.Read();
-					node = new StmtCONTINUE();
-					CheckToken(scan.Peek(), Token.Type.SEMICOLON, true);
+					if (!this.parse_cycle)
+					{
+						this.logger.Add(new Syntax.Exception(NOT_CYCLE, scan.GetPos(), scan.GetLine()));
+					}
+
+					try
+					{
+						scan.Read();
+						node = new Syntax.CONTINUE();
+						CheckToken(scan.Peek(), Token.Type.SEMICOLON, true);
+					}
+					catch (Exception e)
+					{
+						if (this.parse_cycle)
+						{
+							throw e;
+						}
+					}
 					break;
 
 				default:
@@ -686,28 +641,10 @@ namespace Compiler
 			return node;
 		}
 
-		private StmtBLOCK ParseCompound(SymTypeFunc func = null)
+		private List<Syntax.Statement> ParseBlockItemList() 
 		{
-			if (scan.Peek().type != Token.Type.LBRACE)
-			{
-				return null;
-			}
-
-			scan.Read();
-			List<SynObj> stmts = new List<SynObj>();
+			List<Syntax.Statement> stmts = new List<Syntax.Statement>();
 			bool begin_block = true;
-			tables.NewTable();
-
-			if (func != null)
-			{
-				foreach(var arg in func.args)
-				{
-					if (arg.GetName() != Symbol.UNNAMED)
-					{
-						tables.AddVar(arg);
-					}
-				}
-			}
 
 			while (scan.Peek().type != Token.Type.RBRACE && scan.Peek().type != Token.Type.EOF)
 			{
@@ -715,7 +652,15 @@ namespace Compiler
 				{
 					if (IsType(scan.Peek()) && begin_block)
 					{
-						ParseDeclaration();
+						try
+						{
+							ParseDeclaration();
+							
+						}
+						catch (Exception e)
+						{
+							ToHandlerException(e);
+						}
 						continue;
 					}
 
@@ -723,538 +668,616 @@ namespace Compiler
 				
 					stmts.Add(ParseStmt());
 				}
-				catch (SynObj.Exception e)
-				{
-					this.logger.Add(new Parser.Exception(e.Message, scan.GetLine(), scan.GetPos()));
-					PassExpr();
-				}
-				catch (Symbol.Exception e)
-				{
-					this.logger.Add(new Parser.Exception(e.Message, e.line, e.pos));
-					if (!e.Data.Contains("delayed"))
-					{
-						PassExpr();
-					}
-				}
-				catch (Scaner.Exception e)
-				{
-					scan.Pass();
-					this.logger.Add(e);
-					PassExpr();
-				}
-			}
-			CheckToken(scan.Peek(), Token.Type.RBRACE, true);
-			StmtBLOCK res = new StmtBLOCK(stmts, tables.GetCurrent());
-			tables.Up();
-			return res;
-		}
-
-		#endregion
-		
-		#region parse declaration
-
-		enum TypeDeclarator { PARAM, FIELD, VAR };
-
-		private void ParseDeclaration(bool in_block = true, SymTable _table = null)
-		{
-			SymType type = null;
-			SymVar var = null;
-			if (scan.Peek().type == Token.Type.KW_TYPEDEF)
-			{
-				scan.Read();
-				type = ParseType(false, false);
-				var = ParseDeclarator(type);
-				type = new SymTypeAlias(var);
-				tables.AddType(type);
-				CheckToken(scan.Peek(), Token.Type.SEMICOLON, true);
-				return;
-			}
-
-			type = ParseType(false);
-
-			bool is_function = false;
-			bool is_struct = in_block && _table != null;
-			bool first_loop = true;
-
-			if (scan.Peek().type != Token.Type.SEMICOLON)
-			{
-				while (scan.Peek().type == Token.Type.COMMA || first_loop)
-				{
-					if (first_loop)
-					{
-						first_loop = false;
-					}
-					else
-					{
-						scan.Read();
-					}
-
-					var = ParseDeclarator(type, _table == null? TypeDeclarator.VAR: TypeDeclarator.FIELD, in_block);
-
-					if (var.type is SymTypeFunc && !((SymTypeFunc)var.type).IsEmptyBody()) // значит это функция
-					{
-						is_function = true;
-					}
-
-					if (scan.Peek().type == Token.Type.OP_ASSIGN && !is_function && !is_struct)
-					{
-						scan.Read();
-						try
-						{
-							var.SetInitValue(ParseInit());
-						}
-						catch (Compiler.Exception e)
-						{
-							ToHandlerException(e);
-						}
-					}
-
-					if (is_struct)
-					{
-						_table.AddVar(var);
-					}
-					else
-					{
-						tables.AddVar(var);
-					}
-
-
-					if (is_function)
-					{
-						if (scan.Peek().type == Token.Type.SEMICOLON)
-						{
-							scan.Read();
-						}
-							
-						return;
-					}
-				}
-			}
-
-			CheckToken(scan.Peek(), Token.Type.SEMICOLON, true);
-		}
-
-		private bool IsType(Token t)
-		{
-			switch (t.type)
-			{
-				case Token.Type.KW_STRUCT:
-				case Token.Type.KW_ENUM:
-					return true;
-				default:
-					return tables.ContainsType(t.strval);
-			}
-			
-		}
-
-		private SymType ParseStruct()
-		{
-			CheckToken(scan.Peek(), Token.Type.KW_STRUCT, true);
-
-			SymTypeStruct type = new SymTypeStruct();
-
-			if (scan.Peek().type != Token.Type.IDENTIFICATOR && scan.Peek().type != Token.Type.LBRACE)
-			{
-				CheckToken(scan.Peek(), Token.Type.IDENTIFICATOR);
-			}
-
-			if (scan.Peek().type == Token.Type.IDENTIFICATOR)
-			{
-				type.SetName(scan.Read().strval);
-			}
-
-			if (scan.Peek().type == Token.Type.LBRACE)
-			{
-				scan.Read();
-				SymTable items = new SymTable();
-				while (scan.Peek().type != Token.Type.RBRACE && scan.Peek().type != Token.Type.EOF)
-				{
-					try
-					{
-						ParseDeclaration(true, items);
-					}
-					catch (Compiler.Exception e)
-					{
-						ToHandlerException(e);
-					}
-				}
-
-				CheckToken(scan.Peek(), Token.Type.RBRACE, true);
-				type.SetItems(items);
-			}
-
-			return type;
-		}
-
-		private SymType ParseEnum()
-		{
-			CheckToken(scan.Peek(), Token.Type.KW_ENUM, true);
-
-			SymTypeEnum type = new SymTypeEnum();
-
-			if (scan.Peek().type != Token.Type.IDENTIFICATOR && scan.Peek().type != Token.Type.LBRACE)
-			{
-				CheckToken(scan.Peek(), Token.Type.IDENTIFICATOR);
-			}
-
-			if (scan.Peek().type == Token.Type.IDENTIFICATOR)
-			{
-				type.SetName(scan.Read().strval);
-			}
-
-			if (scan.Peek().type == Token.Type.LBRACE)
-			{
-				scan.Read();
-				if (scan.Peek().type != Token.Type.RBRACE)
-				{
-					SymVar var = null;
-					do
-					{
-						CheckToken(scan.Peek(), Token.Type.IDENTIFICATOR);
-						var = new SymVarConst(scan.Read());
-						var.SetType(tables.GetType("int"));
-
-						if (scan.Peek().type == Token.Type.OP_ASSIGN)
-						{
-							scan.Read();
-							var.SetInitValue(new SynInit(ParseConstExpr(false)));
-						}
-						
-						type.AddEnumerator(var);
-						try
-						{
-							tables.AddConst(var);
-						}
-						catch (Symbol.Exception e)
-						{
-							ToHandlerException(e);
-						}
-
-						if (scan.Peek().type == Token.Type.COMMA)
-						{
-							scan.Read();
-						}
-						else
-						{
-							break;
-						}
-					} while (scan.Peek().type != Token.Type.EOF);
-				}
-				CheckToken(scan.Peek(), Token.Type.RBRACE, true);
-			}
-
-			return type;
-		}
-
-		private SymType ParseType(bool parse_storage_class = true, bool add_to_table = true)
-		{
-			SymType type = null;
-			bool possibly_override = false;
-
-			switch (scan.Peek().type)
-			{
-				case Token.Type.KW_VOID:
-					type = new SymTypeVoid(scan.Read());
-					break;
-
-				case Token.Type.KW_INT:
-					type = new SymTypeInt(scan.Read());
-					break;
-
-				case Token.Type.KW_DOUBLE:
-					type = new SymTypeDouble(scan.Read());
-					break;
-
-				case Token.Type.KW_CHAR:
-					type = new SymTypeChar(scan.Read());
-					break;
-
-				case Token.Type.KW_STRUCT:
-					type = ParseStruct();
-					possibly_override = true;
-					break;
-
-				case Token.Type.KW_ENUM:
-					type = ParseEnum();
-					possibly_override = true;
-					break;
-
-				case Token.Type.IDENTIFICATOR:
-					try
-					{
-						type = tables.GetType(scan.Peek().strval);
-					}
-					catch (SymTable.Exception e)
-					{
-						throw new Symbol.Exception(e.Message, scan.GetPos(), scan.GetLine());
-					}
-					scan.Read();
-					break;
-			}
-
-			if (add_to_table && possibly_override)
-			{
-				try
-				{
-					tables.AddType(type);
-				}
-				catch (Symbol.Exception e)
+				catch (Compiler.Exception e)
 				{
 					ToHandlerException(e);
 				}
 			}
-			return type;
+			CheckToken(scan.Peek(), Token.Type.RBRACE, true);
+			return stmts;
 		}
-
-		private SymVar ParseDeclarator(SymType type, TypeDeclarator t_decl = TypeDeclarator.VAR, bool in_block = true)
-		{
-			Three<SymType, SymVar, SymType> res = ParseInternalDeclarator(type, t_decl, in_block);
-
-			if (res == null)
-			{
-				throw new Symbol.Exception("требуется идентификатор", scan.GetPos(), scan.GetLine());
-			}
-
-			res.middle.SetType(res.first);
-			return res.middle;
-		}
-
-		private Pair<SymType, SymType> ParsePointer(Pair<SymType, SymType> l_type_part)
-		{
-			while (scan.Peek().type == Token.Type.OP_STAR)
-			{
-				l_type_part.first = new SymTypePointer(l_type_part.first);
-				if (l_type_part.last == null)
-				{
-					l_type_part.last = l_type_part.first;
-				}
-				scan.Read();
-			}
-
-			if (l_type_part.last == null)
-			{
-				l_type_part.last = l_type_part.first;
-			}
-
-			return l_type_part;
-		}
-
-		private Three<SymType, SymVar, SymType> ParseInternalDeclarator(SymType type = null,
-			TypeDeclarator t_decl = TypeDeclarator.VAR, bool in_block = true)
-		{
-			Pair<SymType, SymType> right_part = new Pair<SymType,SymType>(), left_part = new Pair<SymType,SymType>();
-			bool possibly_function = false;
-			
-			if (type != null)
-			{
-				left_part.first = type;
-			}
-
-			left_part = ParsePointer(left_part);
-
-			SymVar var = null;
-
-			switch (scan.Peek().type)
-			{
-				case Token.Type.IDENTIFICATOR:
-					if (t_decl == TypeDeclarator.PARAM)
-					{
-						var = new SymVarParam(scan.Read());
-					}
-					else
-					{
-						if (tables.isGlobalTable() || t_decl == TypeDeclarator.FIELD)
-						{
-							var = new SymVarGlobal(scan.Read());
-						}
-						else
-						{
-							var = new SymVarLocal(scan.Read());
-						}
-						possibly_function = true;
-					}
-					break;
-
-				case Token.Type.LPAREN:
-					scan.Read();
-					Three<SymType, SymVar, SymType> res = ParseInternalDeclarator(null, t_decl, in_block);
-					if (res == null)
-					{
-						throw new Symbol.Exception("требуется идентификатор", scan.GetPos(), scan.GetLine());
-					}
-
-					right_part.first = res.first;
-					right_part.last = res.last;
-					var = res.middle;
-					CheckToken(scan.Peek(), Token.Type.RPAREN, true);
-					break;
-
-				default:
-					if (t_decl != TypeDeclarator.PARAM)
-					{
-						return null;
-					}
-					var = new SymVarParam(scan.GetLine(), scan.GetPos());
-					break;
-			}
-
-			if (left_part.first == left_part.last && left_part.last is SymTypeVoid 
-				&& scan.Peek().type != Token.Type.LPAREN && t_decl != TypeDeclarator.PARAM)
-			{
-				throw new Symbol.Exception("недопустимо использование типа \"void\"",
-					((SymTypeVoid)left_part.first).pos, ((SymTypeVoid)left_part.first).line);
-			}
-
-
-			bool next = true;
-
-			while (next)
-			{
-				switch (scan.Peek().type)
-				{
-					case Token.Type.LPAREN:
-						if (possibly_function && in_block)
-						{
-							CheckToken(scan.Peek(), Token.Type.SEMICOLON);
-						}
-
-						scan.Read();
-
-						SymTypeFunc func = new SymTypeFunc();
-
-						if (right_part.last != null)
-						{
-							((SymRefType)right_part.last).SetType(func);
-						}
-						right_part.last = func;
-
-						if (right_part.first == null)
-						{
-							right_part.first = right_part.last;
-						}
-
-						if (scan.Peek().type != Token.Type.RPAREN)
-						{
-							try
-							{
-								((SymTypeFunc)right_part.last).SetParam(ParseParameterDeclaration());
-							}
-							catch (Symbol.Exception e)
-							{
-								logger.Add(e);
-							}
-
-							while (scan.Peek().type == Token.Type.COMMA)
-							{
-								scan.Read();
-								try
-								{
-									((SymTypeFunc)right_part.last).SetParam(ParseParameterDeclaration());
-								}
-								catch (Symbol.Exception e)
-								{
-									logger.Add(e);
-								}
-							}
-						}
-
-						CheckToken(scan.Peek(), Token.Type.RPAREN, true);
-						if (possibly_function)
-						{
-							if (scan.Peek().type == Token.Type.LBRACE)
-							{
-								((SymTypeFunc)right_part.last).SetType(left_part.first);
-								var.SetType(right_part.first);
-								tables.AddVar(var);
-								((SymTypeFunc)right_part.last).SetBody(ParseCompound(func));
-								((SymTypeFunc)right_part.last).SetName(var.GetName());
-								next = false;
-							}
-						}
-						break;
-
-					case Token.Type.LBRACKET:
-						scan.Read();
-
-						SymTypeArray arr = new SymTypeArray();
-						if (right_part.last != null)
-						{
-							((SymRefType)right_part.last).SetType(arr);
-						}
-						right_part.last = arr;
-
-						if (right_part.first == null)
-						{
-							right_part.first = right_part.last;
-						}
-
-						if (scan.Peek().type != Token.Type.RBRACKET)
-						{
-							((SymTypeArray)right_part.last).SetSize(ParseConstExpr(false));
-						}
-
-						CheckToken(scan.Peek(), Token.Type.RBRACKET, true);
-						break;
-
-					default:
-						next = false;
-						break;
-				}
-				possibly_function = false;
-			}
-
-			if (right_part.last != null)
-			{
-				((SymRefType)right_part.last).SetType(left_part.first);
-			}
-			else
-			{
-				right_part.first = left_part.first;
-			}
-
-			return new Three<SymType, SymVar, SymType>(right_part.first, var, left_part.last);
-		}
-
-		private SymVarParam ParseParameterDeclaration()
-		{
-			SymType type = ParseType();
-			return ((SymVarParam)ParseDeclarator(type, TypeDeclarator.PARAM));
-		}
-
-		private SynInit ParseInit()
-		{
-			if (scan.Peek().type == Token.Type.LBRACE)
-			{
-				return ParseInitList();
-			}
-
-			SynExpr val = null;
-			val = ParseConstExpr(false);
-
-			return val == null ? null : new SynInit(val);
-		}
-
-		private SynInit ParseInitList()
+		
+		private Syntax.BLOCK ParseCompound(bool create_table = true)
 		{
 			if (scan.Peek().type != Token.Type.LBRACE)
 			{
 				return null;
 			}
-
-			SynInitList res = new SynInitList(scan.GetLine(), scan.GetPos());
 			scan.Read();
 
-			res.AddInit(ParseInit());
-			while (scan.Peek().type == Token.Type.COMMA)
+			if (create_table)
 			{
-				scan.Read();
-				res.AddInit(ParseInit());
+				tstack.NewTable();
 			}
-			CheckToken(scan.Peek(), Token.Type.RBRACE, true);
 
-			return new SynInit(res);
+			Syntax.BLOCK res = null;
+
+			try
+			{
+				this.parse_block = true;
+				res = new Syntax.BLOCK(ParseBlockItemList());
+				this.parse_block = false;
+			}
+			catch (Exception e)
+			{
+				throw e;
+			}
+
+			if (create_table)
+			{
+				tstack.StepUp();
+			}
+			return res;
 		}
 		
-		#endregion
+#endregion
+		
+#region parse declaration
+
+		private void ParseTypedefs()
+		{
+			while (scan.Peek().type == Token.Type.KW_TYPEDEF)
+			{
+				Symbols.TYPEDEF typedef = new Symbols.TYPEDEF(scan.Read());
+				Symbols.Type type = ParseTypeSpecifier();
+				Pair<Symbols.Var, Pair<Symbols.RefType, Symbols.RefType>> pair = ParseDeclarator();
+				if (pair.last != null)
+				{
+					pair.last.last.SetType(type);
+					type = pair.last.first;
+				}
+				typedef.SetName(pair.first.GetName());
+				typedef.SetType(type);
+				tstack.AddSymbol(typedef);
+				CheckToken(scan.Peek(), Token.Type.SEMICOLON, true);
+			}
+		}
+
+		private void ParseDeclaration()
+		{
+			while (scan.Peek().type == Token.Type.SEMICOLON)
+			{
+				scan.Read();
+			}
+			if (scan.Peek().type == Token.Type.EOF)
+			{
+				return;
+			}
+
+			Token first_token = scan.Peek();
+			Symbols.Type type = ParseTypeSpecifier(), variable_type = null;
+
+			Pair<Symbols.Var, Pair<Symbols.RefType, Symbols.RefType>> pair = null;
+			bool function = true;
+
+			while (true)
+			{
+				variable_type = type;
+
+				if ((pair = ParseDeclarator()) != null)
+				{
+					if (pair.last != null)
+					{
+						pair.last.last.SetType(type);
+						variable_type = pair.last.first;
+					}
+
+
+					if (pair.first == null && !(variable_type is Symbols.RECORD))
+					{
+						throw new Syntax.Exception("требуется идентификатор", scan.GetPos(), scan.GetLine());
+					}
+
+					if (pair.first != null)
+					{
+						pair.first.SetType(variable_type);
+					}
+
+					if (scan.Peek().type == Token.Type.OP_ASSIGN) // init declarator
+					{
+						Symbols.Var v = pair.first;
+						Syntax.Expression node = new Syntax.Identifier(
+							new Token(v.GetIndex(), v.GetLine(), Token.Type.IDENTIFICATOR, v.GetName()),
+							v
+						);
+						node = ParseBinaryOper(0, node, true);
+						
+						//pair.first.SetInitializer(ParseInitializer());
+						pair.first.SetInitializer(node);
+						function = false;
+					}
+
+					if (function && scan.Peek().type == Token.Type.LBRACE && tstack.IsGlobal())
+					{
+						tstack.NewTable();
+						tstack.AddSymbol(pair.first);
+						foreach (Symbols.Var arg in ((Symbols.Func)pair.last.first).GetArguments()) 
+						{
+							tstack.AddSymbol(arg);
+						}
+						this.ret_func_type = ((Symbols.Func)pair.last.first).GetRefType();
+						((Symbols.Func)pair.last.first).SetBody(ParseCompound(false));
+						tstack.GetCurrentTable().RemoveSymbol(pair.first);
+						((Symbols.Func)pair.last.first).SetTable(tstack.PopTable());
+						tstack.AddSymbol(pair.first);
+					}
+					else
+					{
+						function = false;
+					}
+
+
+					if (!function && variable_type is Symbols.VOID)
+					{
+						throw new Symbols.Exception("недопустимо использование типа \"void\"",
+							first_token.GetIndex(), first_token.GetLine());
+					}
+					
+
+					if (pair.first != null && !function)
+					{
+						try
+						{
+							tstack.AddSymbol(pair.first);
+						}
+						catch (Symbols.Exception e)
+						{
+							this.logger.Add(e);
+						}
+					}
+				}
+
+				if (scan.Peek().type != Token.Type.COMMA || function)
+				{
+					break;
+				}
+
+				scan.Read();
+				function = false;
+			}
+
+			if (!function)
+			{
+				CheckToken(scan.Peek(), Token.Type.SEMICOLON, true);
+			}
+		}
+
+		private Symbols.Type ParseTypeSpecifier()
+		{
+			ParseTypedefs();
+			switch (scan.Peek().type)
+			{
+				case Token.Type.KW_VOID:
+				case Token.Type.KW_INT:
+				case Token.Type.KW_DOUBLE:
+				case Token.Type.KW_CHAR:
+					return tstack.GetType(scan.Read());
+
+				case Token.Type.KW_STRUCT:
+					scan.Read();
+					Token identifier = null;
+					if (scan.Peek().type == Token.Type.IDENTIFICATOR)
+					{
+						identifier = scan.Read();
+					}
+					
+					if (scan.Peek().type == Token.Type.LBRACE || identifier == null)
+					{
+						CheckToken(scan.Peek(), Token.Type.LBRACE, true);
+						Symbols.RECORD res = null;
+						if (identifier == null)
+						{
+							res = new Symbols.RECORD();
+						}
+						else
+						{
+							res = new Symbols.RECORD(identifier);
+						}
+
+						tstack.NewTable();
+
+						try
+						{
+							ParseStructDeclarationList();
+						}
+						catch (Exception e)
+						{
+							res.SetFields(tstack.PopTable());
+							throw e;
+						}
+						res.SetFields(tstack.PopTable());
+						if (identifier != null)
+						{
+							tstack.AddTag(res);
+						}
+						CheckToken(scan.Peek(), Token.Type.RBRACE, true);
+						return res;
+					}
+					else
+					{
+						return (Symbols.Type)tstack.GetTag(identifier);
+					}
+				default:
+					if (scan.Peek().type != Token.Type.IDENTIFICATOR)
+					{
+						throw new Syntax.Exception("требуется объявление", scan.GetPos(), scan.GetLine());
+					}
+					return tstack.GetType(scan.Read());
+			}
+		}
+
+		private void ParseStructDeclarationList()
+		{
+			Symbols.Type type = null;
+			Symbols.Var variable = null;
+			Pair<Symbols.Var, Pair<Symbols.RefType, Symbols.RefType>> pair = null;
+			while (IsType(scan.Peek()) && (type = ParseTypeSpecifier()) != null)
+			{
+				while(true)
+				{
+					pair = ParseDeclarator();
+					variable = pair.first;
+					if (pair.last == null)
+					{
+						variable.SetType(type);
+					}
+					else
+					{
+						pair.last.last.SetType(type);
+						variable.SetType(pair.last.first);
+					}
+					tstack.AddSymbol(variable);
+					if (scan.Peek().type != Token.Type.COMMA) 
+					{
+						break;
+					}
+					scan.Read();
+				}
+
+				CheckToken(scan.Peek(), Token.Type.SEMICOLON, true);
+			}
+		}
+
+		private Pair<Symbols.Var, Pair<Symbols.RefType, Symbols.RefType>> ParseDeclarator(
+			bool is_abstract = false, bool parse_parameter = false)
+		{
+			Pair<Symbols.POINTER, Symbols.POINTER> pointer = ParsePointer();
+			Pair<Symbols.Var, Pair<Symbols.RefType, Symbols.RefType>> pair = 
+				ParseDirectDeclarator(is_abstract, parse_parameter);
+
+			if (pair.last == null && pointer.first != null)
+			{
+				pair.last = new Pair<Symbols.RefType, Symbols.RefType>(pointer.first, pointer.last);
+			}
+			else if(pointer.first != null)
+			{
+				pair.last.last.SetType(pointer.first);
+				pair.last.last = pointer.last;
+			}
+
+			return pair;
+		}
+
+		private Pair<Symbols.POINTER, Symbols.POINTER> ParsePointer()
+		{
+			Symbols.POINTER head = null, tail = null;
+			while (scan.Peek().type == Token.Type.OP_STAR)
+			{
+				head = new Symbols.POINTER(scan.Read(), head);
+				if (tail == null) { tail = head; }
+			}
+
+			return new Pair<Symbols.POINTER, Symbols.POINTER>(head, tail);
+		}
+
+		private Pair<Symbols.Var, Pair<Symbols.RefType, Symbols.RefType>> ParseDirectDeclarator(
+			bool parse_abstract = false, bool parse_parameter = false)
+		{
+			Symbols.Var variable = null;
+			Pair<Symbols.RefType, Symbols.RefType> tpair = null;
+			Symbols.RefType type = null;
+
+			if (scan.Peek().type == Token.Type.IDENTIFICATOR && !parse_abstract)
+			{
+				if (parse_parameter)
+				{
+					variable = new Symbols.ParamVar(scan.Read());
+				}
+				else if (tstack.IsGlobal())
+				{
+					variable = new Symbols.GlobalVar(scan.Read());
+				}
+				else
+				{
+					variable = new Symbols.LocalVar(scan.Read());
+				}
+			}
+			else if (scan.Peek().type == Token.Type.LPAREN)
+			{
+				scan.Read();
+				Pair<Symbols.Var, Pair<Symbols.RefType, Symbols.RefType>> res = 
+					ParseDeclarator(parse_abstract, parse_parameter);
+
+				variable = res.first;
+				if (res.last != null)
+				{
+					if (tpair == null)
+					{
+						tpair = new Pair<Symbols.RefType, Symbols.RefType>(res.last.first, res.last.last);
+					}
+					else
+					{
+						tpair.last.SetType(res.last.first);
+						tpair.last = res.last.last;
+					}
+				}
+
+				CheckToken(scan.Peek(), Token.Type.RPAREN, false);
+				if (res.last == null && res.first == null)
+				{
+					throw new Syntax.Exception("требуется выражение", scan.GetPos(), scan.GetLine());
+				}
+				scan.Read();
+			}
+
+
+			bool ret = false;
+			while (true)
+			{
+				if (scan.Peek().type == Token.Type.LBRACKET)
+				{
+					type = new Symbols.ARRAY(scan.Read());
+					((Symbols.ARRAY)type).SetSize(ParseAssignmentExpression());
+					CheckToken(scan.Peek(), Token.Type.RBRACKET, true);
+					
+				}
+				else if (scan.Peek().type == Token.Type.LPAREN)
+				{
+					type = new Symbols.Func("", scan.Peek().pos, scan.Peek().line);
+					scan.Read();
+					tstack.NewTable();
+					((Symbols.Func)type).SetArguments(ParseParameterList());
+					((Symbols.Func)type).SetTable(tstack.PopTable());
+					CheckToken(scan.Peek(), Token.Type.RPAREN, true);
+				}
+				else
+				{
+					ret = true;
+				}
+
+				if (type != null )
+				{
+					if (tpair != null)
+					{
+						tpair.last.SetType(type);
+						tpair.last = type;
+					}
+					else
+					{
+						tpair = new Pair<Symbols.RefType, Symbols.RefType>(type, type);
+					}
+				}
+				type = null;
+
+				if (ret)
+				{
+					return new Pair<Symbols.Var, Pair<Symbols.RefType, Symbols.RefType>>(variable, tpair);
+				}
+			}
+		}
+
+		private List<Symbols.ParamVar> ParseParameterList()
+		{
+			List<Symbols.ParamVar> res = new List<Symbols.ParamVar>();
+			Symbols.ParamVar param = null;
+			this.parse_args_declaraton = true;
+			while (scan.Peek().type != Token.Type.RPAREN)
+			{
+				try
+				{
+					param = ParseParameterDeclaration();
+				}
+				catch (Exception e)
+				{
+					ToHandlerException(e);
+					continue;
+				}
+
+				if (param == null)
+				{
+					break;
+				}
+
+				res.Add(param);
+				if (scan.Peek().type != Token.Type.COMMA)
+				{
+					break;
+				}
+				scan.Read();
+			}
+			this.parse_args_declaraton = false;
+			return res;
+		}
+
+		private Symbols.ParamVar ParseParameterDeclaration()
+		{
+			Token first_token = scan.Peek();
+			Symbols.Type type = ParseTypeSpecifier();
+			Symbols.ParamVar variable = null;
+			
+			if (type != null)
+			{
+				Pair<Symbols.Var, Pair<Symbols.RefType, Symbols.RefType>> res;
+				res = ParseDeclarator(parse_parameter:true);
+				variable = (Symbols.ParamVar)res.first;
+
+				if (res.last != null)
+				{
+					res.last.last.SetType(type);
+					type = res.last.first;
+				}
+
+				if (type is Symbols.VOID)
+				{
+					this.logger.Add(new Symbols.Exception("недопустимо использование типа \"void\"",
+								first_token.GetIndex(), first_token.GetLine()));
+					type = new Symbols.SuperType();
+				}
+
+				if (variable == null)
+				{
+					variable = new Symbols.ParamVar("", type.GetIndex(), type.GetLine());
+				}
+			}
+			variable.SetType(type);
+			return variable;
+		}
+
+		private Pair<Symbols.Var, Pair<Symbols.RefType, Symbols.RefType>> ParseDirectAbstractDeclarator()
+		{
+			return ParseDirectDeclarator(true);
+		}
+
+		private List<Pair<Symbols.Var, Pair<Symbols.RefType, Symbols.RefType>>> ParseInitDeclaratorList()
+		{
+			List<Pair<Symbols.Var, Pair<Symbols.RefType, Symbols.RefType>>> res = 
+				new List<Pair<Symbols.Var, Pair<Symbols.RefType, Symbols.RefType>>>();
+			Pair<Symbols.Var, Pair<Symbols.RefType, Symbols.RefType>> pair = null;
+			while (true)
+			{
+				if ((pair = ParseInitDecalarator()) != null)
+				{
+					res.Add(pair);
+				}
+
+				if (scan.Peek().type != Token.Type.COMMA)
+				{
+					break;
+				}
+				scan.Read();
+			}
+
+			return res;
+		}
+
+		private Pair<Symbols.Var, Pair<Symbols.RefType, Symbols.RefType>> ParseInitDecalarator()
+		{
+			Pair<Symbols.Var, Pair<Symbols.RefType, Symbols.RefType>> declarator = ParseDeclarator();
+			if (scan.Peek().type == Token.Type.OP_ASSIGN)
+			{
+				scan.Read();
+				declarator.first.SetInitializer(ParseInitializer());
+			}
+			return declarator;
+		}
+
+		private Syntax.Expression ParseInitializer()
+		{
+			Syntax.Expression res = null;
+			if (scan.Peek().type == Token.Type.LBRACE)
+			{
+				scan.Read();
+				res = new Syntax.Initializer();
+				Syntax.InitializerList init_list = null;
+				while (true)
+				{
+					if ((init_list = ParseInitializerList()) != null)
+					{
+						((Syntax.Initializer)res).AddInitializer(init_list);
+					}
+
+					if (scan.Peek().type != Token.Type.COMMA)
+					{
+						break;
+					}
+					scan.Read();
+				}
+				
+				CheckToken(scan.Peek(), Token.Type.RBRACE, true);
+			}
+			else
+			{
+				res = ParseAssignmentExpression();
+			}
+
+			return res;
+		}
+
+		private Syntax.InitializerList ParseInitializerList()
+		{
+			Syntax.InitializerList res = null;
+			while (true)
+			{
+				Syntax.InitializerList.Designation designation = ParseDesignation();
+				Syntax.Expression const_val = null;
+				if (designation != null)
+				{
+					CheckToken(scan.Peek(), Token.Type.OP_ASSIGN, true);
+					const_val = ParseInitializer();
+					Syntax.Object.CheckObject(const_val);
+				}
+				else
+				{
+					const_val = ParseConstExpr();
+				}
+				 
+				if (const_val != null)
+				{
+					if (res == null) 
+					{
+						res = new Syntax.InitializerList(); 
+					}
+					res.AddInitializer(const_val, designation);
+				}
+
+				if (scan.Peek().type != Token.Type.COMMA || const_val == null)
+				{
+					break;
+				}
+				scan.Read();
+			}
+
+			return res;
+		}
+
+		private Syntax.InitializerList.Designation ParseDesignation()
+		{
+			Syntax.InitializerList.Designation designation = null, subdisignation = null;
+			while (true)
+			{
+				if (scan.Peek().type == Token.Type.COMMA)
+				{
+					CheckToken(scan.Peek(), Token.Type.IDENTIFICATOR);
+					subdisignation = new Syntax.InitializerList.Designation();
+					subdisignation.SetDesignator(new Syntax.Identifier(scan.Read()));
+				}
+				else if (scan.Peek().type == Token.Type.LBRACKET)
+				{
+					scan.Read();
+					Syntax.Expression const_expr = ParseConstExpr();
+					Syntax.Object.CheckObject(const_expr);
+					subdisignation = new Syntax.InitializerList.Designation();
+					subdisignation.SetDesignator(const_expr);
+					CheckToken(scan.Peek(), Token.Type.RBRACKET, true);
+				}
+
+				if (subdisignation == null)
+				{
+					break;
+				}
+				if (designation == null)
+				{
+					designation = subdisignation;
+				}
+				else
+				{
+					designation.SetDesignator(subdisignation);
+				}
+				subdisignation = null;
+			}
+
+			return designation;
+		}
+#endregion
 	}
 }

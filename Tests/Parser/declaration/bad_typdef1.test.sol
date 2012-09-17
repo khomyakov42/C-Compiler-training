@@ -1,15 +1,10 @@
-<--------TABLES-------->
-<---TABLE--->
-VARS::
-
-TYPES::
-char char
-
-double double
-
-int int
-
-void void
-
-Ошибка синтаксиса в строке 1 позиции 8: тип "A" неопределен
+<<<table #1>>>
+<tags>
+<types>
+int
+char
+double
+void
+<vars>
+Семантическая ошибка в строке 1, позиции 9: тип "A" не определен
 

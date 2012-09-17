@@ -1,24 +1,24 @@
-<--------TABLES-------->
-<---TABLE--->
-VARS::
+<<<table #1>>>
+<tags>
+<types>
+int
+char
+double
+void
+<vars>
+var GLOBAL type int
+юдд{=}
+   цдд{GLOBAL}
+   юдд{5}
 
-GLOBAL   int   
- = 5
+var f type function (){
+              <<<table #3>>>
+              <tags>
+              <types>
+              <vars>
+              юдд{block}
+                 юдд{return}
+                    юдд{GLOBAL}
 
+} returned int
 
-f   FUNC () { BLOCK     RETURN          GLOBAL } RETURNED int   
-
-
-TYPES::
-char char
-
-double double
-
-int int
-
-void void
-
-<---TABLE--->
-VARS::
-
-TYPES::

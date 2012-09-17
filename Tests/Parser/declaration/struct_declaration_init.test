@@ -1,5 +1,0 @@
-struct {
-	int a, b, c;
-	char x, y, z;
-} p = {0,1,2};
-

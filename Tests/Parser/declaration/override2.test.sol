@@ -1,52 +1,29 @@
-<--------TABLES-------->
-<---TABLE--->
-VARS::
+<<<table #1>>>
+<tags>
+<types>
+int
+char
+double
+void
+typedef <TINT> <int
+typedef <TT> <int
+<vars>
+var main type function (){
+                 <<<table #3>>>
+                 <tags>
+                 TINT record
+                    <<<table #4>>>
+                    <tags>
+                    <types>
+                    <vars>
+                    var x type int
+                  endrecord
+                 <types>
+                 <vars>
+                 var X type TINT record
+                             endrecord
+                 var Y type int
+                 ÀÄÄ{empty block}
 
-main   FUNC () { BLOCK } RETURNED int   
-
-
-TYPES::
-char char
-
-double double
-
-int int
-
-void void
-
-TT ENUM TT {
-A
-B
-C
-}
-
-TENUM ENUM TT {
-A
-B
-C
-}
-
-<---TABLE--->
-VARS::
-
-X   STRUCT TENUM{
-vars::
-
-types::
-}   
-
-
-Y   ENUM TT {
-A
-B
-C
-}   
-
-
-TYPES::
-TENUM STRUCT TENUM{
-vars::
-
-types::
-}
+} returned int
 
