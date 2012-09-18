@@ -1,4 +1,18 @@
 void main()
 {
-return;
+int b[2][3];
+int a[2];
+struct F{
+	int x, y;
+	double fi;
+} c[10];
+
+struct F d[10][20];
+
+b[1][2];
+b[1];
+a[1];
+c[2];
+d[2];
+d[3][4];
 }

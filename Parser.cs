@@ -762,6 +762,8 @@ namespace Compiler
 						variable_type = pair.last.first;
 					}
 
+					///Когда мы устанавливаем финальный тип, то нужно пересчитать размер всех типов
+
 
 					if (pair.first == null && !(variable_type is Symbols.RECORD))
 					{
@@ -938,7 +940,7 @@ namespace Compiler
 			}
 		}
 
-		private Pair<Symbols.Var, Pair<Symbols.RefType, Symbols.RefType>> ParseDeclarator(
+		private Pair<Symbols.Var, Pair<Symbols.RefType, Symbols.RefType>> ParseDeclarator(Symbols.Type type,
 			bool is_abstract = false, bool parse_parameter = false)
 		{
 			Pair<Symbols.POINTER, Symbols.POINTER> pointer = ParsePointer();

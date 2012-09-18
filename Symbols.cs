@@ -202,7 +202,8 @@ namespace Compiler
 
 		abstract class Type : Symbol
 		{
-			protected virtual int size_t { get { return 0; } }
+			protected int __size_t;
+			protected virtual int size_t { get { return this.__size_t; } set { this.__size_t = value; } }
 
 			public Type() : base() { }
 
@@ -304,6 +305,8 @@ namespace Compiler
 
 		class CHAR : TypeScalar
 		{
+			protected override int size_t { get { return 1; } }
+
 			public CHAR() : base() { this.name = "char"; }
 
 			public CHAR(Token t) : base(t) { }
@@ -319,6 +322,8 @@ namespace Compiler
 
 		class DOUBLE : TypeScalar
 		{
+			protected override int size_t { get { return 8; } }
+
 			public DOUBLE() : base() { this.name = "double"; }
 
 			public DOUBLE(Token t) : base(t) { }
@@ -330,6 +335,7 @@ namespace Compiler
 		class RECORD : Type
 		{
 			protected Table table = null;
+
 			public RECORD() : base() { }
 
 			public RECORD(Token t) : base(t) { }
@@ -343,6 +349,13 @@ namespace Compiler
 				{
 					throw new Exception("необходим хотя бы один элемент", this.GetIndex(), this.GetLine());
 				}
+
+				int size = 0;
+				foreach (Var v in table.symbols.Values.Where(el => el is Var))
+				{
+					size += v.GetType().GetSizeType();	
+				}
+				this.size_t = size;
 			}
 
 			public Table GetTable()
@@ -401,7 +414,7 @@ namespace Compiler
 				this.SetType(ty);
 			}
 
-			public void SetType(Type type)
+			virtual public void SetType(Type type)
 			{
 				this.type = type;
 			}
@@ -424,7 +437,10 @@ namespace Compiler
 
 			public TYPEDEF(Token t) : base(t) { }
 
-			public TYPEDEF(Type t) : base(t) { }
+			public TYPEDEF(Type t) : base(t) 
+			{
+				this.size_t = t.GetSizeType();
+			}
 
 			public override void Print(StreamWriter stream, int indent)
 			{
@@ -441,6 +457,8 @@ namespace Compiler
 
 		class POINTER : RefType
 		{
+			protected override int size_t { get { return 4; } }
+
 			public POINTER() : base() { }
 
 			public POINTER(Token t) : base(t) 
@@ -474,6 +492,8 @@ namespace Compiler
 
 		class ARRAY : POINTER
 		{
+			protected override int size_t { get { return this.__size_t; } }
+
 			protected const int DIMENSIONLESS = -1;
 			protected int size = DIMENSIONLESS;
 
@@ -504,6 +524,22 @@ namespace Compiler
 				{
 					throw e;
 				}
+				this.ComputeSizeType();
+			}
+
+			public override void SetType(Type type)
+			{
+				this.type = type;
+				this.ComputeSizeType();
+			}
+
+			private void ComputeSizeType()
+			{
+				if (this.size == ARRAY.DIMENSIONLESS || this.type == null)
+				{
+					return;
+				}
+				this.size_t = this.GetRefType().GetSizeType() * this.size;
 			}
 
 			public override void Print(StreamWriter stream, int indent)
@@ -518,6 +554,8 @@ namespace Compiler
 
 		class Func : RefType
 		{
+			protected override int size_t { get { return 4; } }
+
 			protected List<ParamVar> args = new List<ParamVar>();
 			protected Syntax.Statement body = null;
 			protected Table table = null;
@@ -584,6 +622,7 @@ namespace Compiler
 			public void SetBody(Syntax.Statement body) 
 			{
 				this.body = body;
+				this.body.Modified();
 			}
 
 			public void SetTable(Table table)

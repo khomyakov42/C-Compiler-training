@@ -27,12 +27,14 @@ namespace Compiler
 				public Expression left, right;
 				public Symbols.Type type;
 				public bool lvalue = false;
+				public Token op;
 			}
 
 			public class UnaryConvertResult{
 				public Expression operand;
 				public Symbols.Type type;
 				public bool lvalue = false;
+				public Token op;
 			}
 
 			public enum PostfixOperator { DOT, REF, INDEX }
@@ -61,6 +63,7 @@ namespace Compiler
 			{
 				Symbols.Type lt = lop.GetType(), rt = rop.GetType();
 				BinaryConvertResult res = new BinaryConvertResult();
+				res.op = op;
 				Pair<Expression, Expression> uacon = null;
 				switch (op.type)
 				{
@@ -306,9 +309,13 @@ namespace Compiler
 						BinaryOperator bop = new BinaryOperator(new Token(tt));
 						bop.SetLeftOperand(lop);
 						bop.SetRightOperand(rop);
-						BinaryOperator assign = new BinaryOperator(new Token(Token.Type.OP_ASSIGN));
+						res.op = new Token(op.GetIndex(), op.GetLine(), Token.Type.OP_ASSIGN, "=");
+						BinaryOperator assign = new BinaryOperator(res.op);
 						assign.SetLeftOperand(lop);
 						assign.SetRightOperand(bop);
+						BinaryConvertResult r = ConvertBinaryOperands(lop, bop, res.op);
+						rop = r.right;
+						lop = r.left;
 						res.type = lop.GetType();
 						break;
 
