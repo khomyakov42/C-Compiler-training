@@ -1,8 +1,8 @@
 @echo off
 for /r tests/parser/declaration %%f in (*.test) do (
 	del %%f.out
-	bin\Debug\Compiler.exe -c %%f >> %%f.out
    echo compilation %%f
+	bin\Debug\Compiler.exe -c %%f >> %%f.out
 )
 
 for /r tests/parser/declaration %%f in (*.test) do (

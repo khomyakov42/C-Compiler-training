@@ -19,6 +19,11 @@ typedef <F_INT> <pointer to function (){
 var x type pointer to function (){
 } returned int
 var ms type  record
+               <<<table #2>>>
+               <tags>
+               <types>
+               <vars>
+               var x type int
              endrecord
 var asd type pointer to array size 100 of pointer to int
 

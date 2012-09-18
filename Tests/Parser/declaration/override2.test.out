@@ -21,6 +21,11 @@ var main type function (){
                  <types>
                  <vars>
                  var X type TINT record
+                               <<<table #4>>>
+                               <tags>
+                               <types>
+                               <vars>
+                               var x type int
                              endrecord
                  var Y type int
                  ÀÄÄ{empty block}

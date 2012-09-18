@@ -411,6 +411,7 @@ namespace Compiler
 						if (this.expr is Refference && ((Refference)this.expr).op.type == Token.Type.LBRACKET)
 						{
 							UnaryOperator u = new UnaryOperator(new Token(Token.Type.OP_BIT_AND));
+							this.expr.SetType(((Symbols.RefType)this.expr.GetType()).GetRefType());
 							u.SetOperand(this.expr);
 							bop.SetRightOperand(u);
 						}
@@ -875,7 +876,7 @@ namespace Compiler
 
 		class StatementExpression : Statement
 		{
-			protected Expression expression;
+			protected Expression expression = new EmptyExpression();
 
 			public StatementExpression() { }
 
@@ -886,7 +887,7 @@ namespace Compiler
 
 			public void SetExpression(Expression expression)
 			{
-				this.expression = expression;
+				this.expression = expression == null ? new EmptyExpression() : expression;
 			}
 
 			public Expression GetExpression()

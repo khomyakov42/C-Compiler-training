@@ -29,9 +29,11 @@ var up type function (){
                <types>
                <vars>
                └──{block}
-                  └──{+=}
+                  └──{=}
                      ├──{x}
-                     └──{4}
+                     └──{+}
+                        ├──{x}
+                        └──{4}
 
 } returned void
 var main type function (){
@@ -58,7 +60,7 @@ var main type function (){
                     │     └──{f}
                     ├──{call}
                     │  └──{up}
-                    └──{empty statement}
+                    └──{empty expr}
 
 } returned void
 Семантическая ошибка в строке 16, позиции 10: функция не должна возвращать значение

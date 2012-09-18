@@ -89,6 +89,7 @@ namespace Compiler
 
 			public void SetType(Type type) 
 			{
+				type.ComputeSize();
 				this.type = type;
 			}
 
@@ -235,6 +236,8 @@ namespace Compiler
 			{
 				return t is Type && t.GetName() == this.GetName();
 			}
+
+			public virtual void ComputeSize() { }
 		}
 
 
@@ -349,13 +352,6 @@ namespace Compiler
 				{
 					throw new Exception("необходим хотя бы один элемент", this.GetIndex(), this.GetLine());
 				}
-
-				int size = 0;
-				foreach (Var v in table.symbols.Values.Where(el => el is Var))
-				{
-					size += v.GetType().GetSizeType();	
-				}
-				this.size_t = size;
 			}
 
 			public Table GetTable()
@@ -376,6 +372,27 @@ namespace Compiler
 			public override bool Equals(Symbol t)
 			{
 				return t is RECORD && base.Equals(t) && this.table.Equals(((RECORD)t).table);
+			}
+
+			public override string ToString()
+			{
+				return "struct " + this.GetName();
+			}
+
+			public override void ComputeSize()
+			{
+				if (this.table == null)
+				{
+					return;
+				}
+
+				int size = 0;
+				foreach (Var v in this.table.symbols.Values.Where(el => el is Var))
+				{
+					v.GetType().ComputeSize();
+					size += v.GetType().GetSizeType();
+				}
+				this.size_t = size;
 			}
 		}
 
@@ -452,6 +469,17 @@ namespace Compiler
 			{
 				return t.Equals(this.GetRefType());
 			}
+
+			public override string ToString()
+			{
+				return this.GetRefType().ToString();
+			}
+
+			public override void ComputeSize()
+			{
+				this.GetRefType().ComputeSize();
+				this.size_t = this.GetRefType().GetSizeType();
+			}
 		}
 
 
@@ -486,6 +514,11 @@ namespace Compiler
 				base.Print(stream, indent);
 				stream.Write(" to ");
 				this.GetRefType().Print(stream, 0);
+			}
+
+			public override string ToString()
+			{
+				return "*(" + this.GetRefType().ToString() + ")";
 			}
 		}
 
@@ -539,7 +572,6 @@ namespace Compiler
 				{
 					return;
 				}
-				this.size_t = this.GetRefType().GetSizeType() * this.size;
 			}
 
 			public override void Print(StreamWriter stream, int indent)
@@ -548,6 +580,17 @@ namespace Compiler
 				stream.Write(this.size == ARRAY.DIMENSIONLESS ? " dimensionless" : " size " + this.size);
 				stream.Write(" of ");
 				this.GetRefType().Print(stream, 0);
+			}
+
+			public override string ToString()
+			{
+				return this.GetRefType().ToString() + "[" + this.size + "]";
+			}
+
+			public override void ComputeSize()
+			{
+				this.GetRefType().ComputeSize();
+				this.size_t = this.GetRefType().GetSizeType() * this.size;
 			}
 		}
 
@@ -659,6 +702,24 @@ namespace Compiler
 				stream.Write(stream.NewLine);
 				stream.Write("} returned ");
 				this.GetRefType().Print(stream, 0);
+			}
+
+			public override string ToString()
+			{
+				string res = this.GetRefType() == null ? "" : this.GetRefType().ToString();
+				res += "(*)";
+
+				foreach (Var arg in this.args.Where(x => x.GetType() != null))
+				{
+					res += arg.GetType().ToString() + ", ";
+				}
+
+				if (this.args.Where(x => x.GetType() != null).Count() > 0)
+				{
+					res = res.Substring(0, res.Length - 2);
+				}
+
+				return res + ")";
 			}
 		}
 	}

@@ -940,7 +940,7 @@ namespace Compiler
 			}
 		}
 
-		private Pair<Symbols.Var, Pair<Symbols.RefType, Symbols.RefType>> ParseDeclarator(Symbols.Type type,
+		private Pair<Symbols.Var, Pair<Symbols.RefType, Symbols.RefType>> ParseDeclarator(
 			bool is_abstract = false, bool parse_parameter = false)
 		{
 			Pair<Symbols.POINTER, Symbols.POINTER> pointer = ParsePointer();
