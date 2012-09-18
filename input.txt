@@ -1,8 +1,4 @@
-int main(){
-   struct T{
-      int a;
-   } arr[10][12];
-   struct T v, *pv;
-   v = arr[1][2];
-	
+int main() {
+	printf("%d %f %s", 1000, 200.123, "hello");
+	getchar();
 }

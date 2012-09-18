@@ -73,6 +73,8 @@ namespace Compiler
 			}
 
 			abstract public bool Equals(Symbol t);
+
+			virtual public void GenerateCode(ICodeGen gen) { }
 		}
 
 
@@ -80,12 +82,23 @@ namespace Compiler
 		{
 			protected Type type = null;
 			protected Syntax.Expression value = null;
+			protected string address = "";
 
 			public Var() : base() { }
 
 			public Var(Token t) : base(t) { }
 
 			public Var(string name, int index, int line) : base(name, index, line) { }
+
+			public void SetAddress(string address)
+			{
+				this.address = address;
+			}
+
+			public string GetAddress()
+			{
+				return this.address;
+			}
 
 			public void SetType(Type type) 
 			{
@@ -120,6 +133,25 @@ namespace Compiler
 			{
 				Symbol tt = ((Var)t).GetType();
 				return t is Var && t.GetName() == this.GetName() && this.type.Equals(tt);
+			}
+
+			public override void GenerateCode(ICodeGen gen)
+			{
+				if (this.GetType() is Func)
+				{
+					if (this.GetType() is ExternFunc)
+					{
+						gen.Import(this);
+					}
+					else
+					{
+						this.GetType().GenerateCode(gen);
+					}
+				}
+				else
+				{
+					gen.Decl(this);
+				}
 			}
 		}
 
@@ -598,18 +630,19 @@ namespace Compiler
 		class Func : RefType
 		{
 			protected override int size_t { get { return 4; } }
+			protected bool unspecified_args = false;
 
 			protected List<ParamVar> args = new List<ParamVar>();
 			protected Syntax.Statement body = null;
 			protected Table table = null;
 
-			public Func() : base() { }
+			public Func() : base() { this.type = new VOID(); }
 
-			public Func(Token t) : base(t) { }
+			public Func(Token t) : base(t) { this.type = new VOID(); }
 
-			public Func(Type t) : base(t) { }
+			public Func(Type t) : base(t) { this.type = new VOID(); }
 
-			public Func(string name, int index, int line) : base(name, index, line) { }
+			public Func(string name, int index, int line) : base(name, index, line) { this.type = new VOID(); }
 
 
 			public bool Merge(Func f)
@@ -623,13 +656,22 @@ namespace Compiler
 				return false;
 			}
 
+			public void SetUnspecifiedArgs()
+			{
+				this.unspecified_args = true;
+			}
+
+			public bool IsUnspecifiedArgs()
+			{
+				return this.unspecified_args;
+			}
 
 			public override bool Equals(Symbol t)
 			{
 				if (t is Func && base.Equals(t))
 				{
 					Func f = (Func)t;
-					if (f.args.Count != this.args.Count)
+					if (f.args.Count != this.args.Count || f.unspecified_args != this.unspecified_args)
 					{
 						return false;
 					}
@@ -707,19 +749,53 @@ namespace Compiler
 			public override string ToString()
 			{
 				string res = this.GetRefType() == null ? "" : this.GetRefType().ToString();
+				bool _ = false;
 				res += "(*)";
 
 				foreach (Var arg in this.args.Where(x => x.GetType() != null))
 				{
 					res += arg.GetType().ToString() + ", ";
+					_ = true;
 				}
 
-				if (this.args.Where(x => x.GetType() != null).Count() > 0)
+				if (this.unspecified_args)
+				{
+					res += "..., ";
+					_ = true;
+				}
+
+				if (_)
 				{
 					res = res.Substring(0, res.Length - 2);
 				}
 
 				return res + ")";
+			}
+
+			public override void GenerateCode(ICodeGen gen)
+			{
+				int local = this.GetTable().GetVariables().Sum(v => v is ParamVar ? 0 : v.GetType().GetSizeType());
+				gen.StartProc(this);
+				foreach (LocalVar v in this.GetTable().GetVariables())
+				{
+					gen.Decl(v);
+				}
+
+				this.body.GenerateCode(gen);
+				gen.EndProc();
+			}
+		}
+
+
+		class ExternFunc : Func 
+		{
+			public ExternFunc(string name) : base() 
+			{
+				this.SetName(name);
+			}
+
+			public override void GenerateCode(ICodeGen gen)
+			{
 			}
 		}
 	}

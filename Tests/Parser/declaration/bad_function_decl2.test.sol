@@ -6,6 +6,14 @@ char
 double
 void
 <vars>
+var printf type function printf(var  type  to char, ){
+} returned void
+var scanf type function scanf(var  type  to char, ){
+} returned void
+var getchar type function getchar(){
+} returned int
+var f type function (){
+} returned int
  <<<table #3>>>
  <tags>
  <types>

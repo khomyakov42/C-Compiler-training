@@ -16,6 +16,12 @@ typedef <MYSTRACT> < record
 typedef <F_INT> <pointer to function (){
 } returned int
 <vars>
+var printf type function printf(var  type  to char, ){
+} returned void
+var scanf type function scanf(var  type  to char, ){
+} returned void
+var getchar type function getchar(){
+} returned int
 var x type pointer to function (){
 } returned int
 var ms type  record

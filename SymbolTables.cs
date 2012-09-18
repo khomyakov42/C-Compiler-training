@@ -44,6 +44,12 @@ namespace Compiler
 				}
 			}
 
+
+			public IEnumerable<Var> GetVariables()
+			{
+				return this.symbols.Values.Where(var => var is Var).ToList().Cast<Var>();
+			}
+
 			public void AddSymbol(Symbol symbol)
 			{
 				if (symbol is Var && ((Var)symbol).GetType() is Func 
@@ -226,6 +232,11 @@ namespace Compiler
 		{
 			private Table root = null, current = null;
 			private int count_tables = 0;
+
+			public Table GetRoot()
+			{
+				return this.root;
+			}
 
 			public StackTable() 
 			{

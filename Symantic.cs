@@ -420,7 +420,7 @@ namespace Compiler
 				Symbols.Func f = (Symbols.Func)(t is Symbols.Func ? t : ((Symbols.POINTER)t).GetRefType());
 				List<Symbols.ParamVar> f_args = f.GetArguments();
 
-				if (f_args.Count != args.Count)
+				if (f_args.Count != args.Count && !f.IsUnspecifiedArgs())
 				{
 					throw new Symbols.Exception(func, WRONG_NUMBER_ARGS);
 				}

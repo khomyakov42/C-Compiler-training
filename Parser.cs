@@ -34,6 +34,29 @@ namespace Compiler
 			tstack.AddSymbol(new Symbols.CHAR("char", 0, 0));
 			tstack.AddSymbol(new Symbols.DOUBLE("double", 0, 0));
 			tstack.AddSymbol(new Symbols.VOID("void", 0, 0));
+
+			
+			Symbols.ExternFunc f = new Symbols.ExternFunc("printf");
+			Symbols.GlobalVar v = new Symbols.GlobalVar("printf", 0, 0);
+			Symbols.ParamVar str = new Symbols.ParamVar();
+			v.SetType(f);
+			str.SetType(new Symbols.POINTER(new Symbols.CHAR()));
+			f.AddArgument(str);
+			f.SetUnspecifiedArgs();
+			tstack.AddSymbol(v);
+
+			f = new Symbols.ExternFunc("scanf");
+			v = new Symbols.GlobalVar("scanf", 0, 0);
+			v.SetType(f);
+			f.AddArgument(str);
+			f.SetUnspecifiedArgs();
+			tstack.AddSymbol(v);
+
+			f = new Symbols.ExternFunc("getchar");
+			v = new Symbols.GlobalVar("getchar", 0, 0);
+			v.SetType(f);
+			f.SetType(new Symbols.INT());
+			tstack.AddSymbol(v);
 		}
 
 		private void PassExpr(String stop_chars = ";")
@@ -227,7 +250,10 @@ namespace Compiler
 
 				case Token.Type.CONST_STRING:
 					this.count_string++;
-					res = new Syntax.Const(scan.Read(), new Symbols.POINTER(tstack.GetType("char")));
+					Symbols.ARRAY strt = new Symbols.ARRAY(tstack.GetType("char"));
+					Token str = scan.Read();
+					strt.SetSize(new Syntax.Const(str.GetStrVal().Length.ToString(), tstack.GetType("int")));
+					res = new Syntax.Const(str, strt);
 					break;
 
 				case Token.Type.IDENTIFICATOR:
@@ -791,8 +817,16 @@ namespace Compiler
 
 					if (function && scan.Peek().type == Token.Type.LBRACE && tstack.IsGlobal())
 					{
-						tstack.NewTable();
+						pair.last.first.SetName(pair.first.GetName());
 						tstack.AddSymbol(pair.first);
+						tstack.NewTable();
+
+						if (((Symbols.Func)pair.last.first).GetArguments()
+							.Count(x => x.GetName() == pair.first.GetName()) == 0)
+						{
+							tstack.AddSymbol(pair.first);
+						}
+
 						foreach (Symbols.Var arg in ((Symbols.Func)pair.last.first).GetArguments()) 
 						{
 							tstack.AddSymbol(arg);
@@ -801,7 +835,6 @@ namespace Compiler
 						((Symbols.Func)pair.last.first).SetBody(ParseCompound(false));
 						tstack.GetCurrentTable().RemoveSymbol(pair.first);
 						((Symbols.Func)pair.last.first).SetTable(tstack.PopTable());
-						tstack.AddSymbol(pair.first);
 					}
 					else
 					{

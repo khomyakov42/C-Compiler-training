@@ -153,6 +153,9 @@ namespace Compiler
 			{
 				return this;
 			}
+
+
+			virtual public void GenerateCode(ICodeGen gen) { }
 		}
 
 
@@ -338,6 +341,35 @@ namespace Compiler
 				this.op = res.op;
 				return this;
 			}
+
+
+			public override void GenerateCode(ICodeGen gen)
+			{
+				this.left_operand.GenerateCode(gen);
+				this.right_operand.GenerateCode(gen);
+				switch (this.op.type)
+				{
+					case Token.Type.OP_STAR: break;
+					case Token.Type.OP_ASSIGN: gen.Mov(); break;
+					case Token.Type.OP_MOD: gen.Mod(); break;
+					case Token.Type.OP_DIV: gen.Div(); break;
+					case Token.Type.OP_PLUS: gen.Add(); break;
+					case Token.Type.OP_SUB: gen.Sub(); break;
+					case Token.Type.OP_XOR: gen.Xor(); break;
+					case Token.Type.OP_BIT_AND: break;
+					case Token.Type.OP_BIT_OR: break;
+					case Token.Type.OP_AND: break;
+					case Token.Type.OP_OR: break;
+					case Token.Type.OP_EQUAL: break;
+					case Token.Type.OP_NOT_EQUAL: break;
+					case Token.Type.OP_MORE: break;
+					case Token.Type.OP_LESS: break;
+					case Token.Type.OP_MORE_OR_EQUAL: break;
+					case Token.Type.OP_LESS_OR_EQUAL: break;
+					case Token.Type.OP_L_SHIFT: break;
+					case Token.Type.OP_R_SHIFT: break;
+				}
+			}
 		}
 
 
@@ -480,7 +512,8 @@ namespace Compiler
 
 				const string ERROR = "не существует преобразования из {0} в {1}";
 
-				if (this.operand.GetType() is Symbols.RECORD || this.type_cast is Symbols.RECORD)
+				if (this.operand.GetType() is Symbols.RECORD || this.type_cast is Symbols.RECORD ||
+					this.operand.GetType() is Symbols.VOID || this.type_cast is Symbols.VOID)
 				{
 					throw new Symbols.Exception(this.operand,
 						string.Format(ERROR, this.operand.GetType().ToString(), this.type_cast.ToString()));
@@ -496,6 +529,23 @@ namespace Compiler
 			{
 				this.operand = this.operand.Modified();
 				return this;
+			}
+
+			public override void GenerateCode(ICodeGen gen)
+			{
+				this.operand.GenerateCode(gen);
+				if (this.type_cast is Symbols.INT || this.type_cast is Symbols.POINTER)
+				{
+					gen.ToInt(this.type_cast.GetSizeType());
+				}
+				else if (this.type_cast is Symbols.CHAR)
+				{
+					gen.ToInt(this.type_cast.GetSizeType());
+				}
+				else if (this.type_cast is Symbols.DOUBLE)
+				{
+					gen.ToFloat(this.type_cast.GetSizeType());
+				}
 			}
 		}
 
@@ -564,6 +614,24 @@ namespace Compiler
 				this.arguments = args;
 				this.operand = this.operand.Modified();
 				return this;
+			}
+
+			public override void GenerateCode(ICodeGen gen)
+			{
+				this.arguments.Reverse();
+				foreach (Expression arg in this.arguments)
+				{
+					arg.GenerateCode(gen);
+				}
+				this.arguments.Reverse();
+
+				this.operand.GenerateCode(gen);
+				gen.Call();
+
+				for (int i = 0; i < this.arguments.Count; ++i )
+				{
+					gen.Pop();
+				}
 			}
 		}
 		
@@ -651,13 +719,26 @@ namespace Compiler
 
 			public Const(Token constant, Symbols.Type type) : base(constant)
 			{
-				this.SetConstant(constant);
 				this.SetType(type);
+				this.SetConstant(constant);
 			}
 
 			public void SetConstant(string value)
 			{
+				if (this.type is Symbols.DOUBLE)
+				{
+					value = value.Replace(',', '.');
+				}
+				else if (this.type is Symbols.CHAR)
+				{
+					value = ((int)Convert.ToChar(value)).ToString();
+				}
 				this.constant = value;
+			}
+
+			public string GetValue()
+			{
+				return this.constant;
 			}
 
 			public void SetConstant(Token constant)
@@ -687,6 +768,11 @@ namespace Compiler
 			public override string ToString()
 			{
 				return this.constant;
+			}
+
+			public override void GenerateCode(ICodeGen gen)
+			{
+				gen.Push(this);
 			}
 		}
 
@@ -732,6 +818,11 @@ namespace Compiler
 			public override string ToString()
 			{
 				return this.identifier.GetStrVal();
+			}
+
+			public override void GenerateCode(ICodeGen gen)
+			{
+				gen.Push(this);
 			}
 		}
 
@@ -819,9 +910,9 @@ namespace Compiler
 				return new List<Object>();
 			}
 
-			virtual public void Modified()
-			{
-			}
+			virtual public void Modified() { }
+
+			virtual public void GenerateCode(ICodeGen gen) { }
 		}
 
 
@@ -909,6 +1000,18 @@ namespace Compiler
 			{
 				this.expression = this.expression.Modified();
 			}
+
+			public override void GenerateCode(ICodeGen gen)
+			{
+				if (!(this.expression is EmptyExpression))
+				{
+					this.expression.GenerateCode(gen);
+					if (!(this.expression.GetType() is Symbols.VOID)
+					{
+						gen.Pop();
+					}
+				}
+			}
 		}
 
 
@@ -945,6 +1048,15 @@ namespace Compiler
 				foreach (Statement st in this.statement_list)
 				{
 					st.Modified();
+				}
+			}
+
+
+			public override void GenerateCode(ICodeGen gen)
+			{
+				foreach (Statement stmt in this.statement_list)
+				{
+					stmt.GenerateCode(gen);
 				}
 			}
 		}

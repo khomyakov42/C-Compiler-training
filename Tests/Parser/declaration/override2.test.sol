@@ -8,6 +8,12 @@ void
 typedef <TINT> <int
 typedef <TT> <int
 <vars>
+var printf type function printf(var  type  to char, ){
+} returned void
+var scanf type function scanf(var  type  to char, ){
+} returned void
+var getchar type function getchar(){
+} returned int
 var main type function (){
                  <<<table #3>>>
                  <tags>

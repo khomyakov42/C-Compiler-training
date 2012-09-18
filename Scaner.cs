@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.IO;
+using System.Globalization;
 
 namespace Compiler
 {
@@ -165,7 +166,7 @@ namespace Compiler
 		{
 			try
 			{
-				return Convert.ToDouble(s.Replace('.', ','));
+				return Convert.ToDouble(s, new CultureInfo("en-US"));
 			}
 			catch (OverflowException)
 			{

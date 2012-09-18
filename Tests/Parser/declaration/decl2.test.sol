@@ -6,6 +6,12 @@ char
 double
 void
 <vars>
+var printf type function printf(var  type  to char, ){
+} returned void
+var scanf type function scanf(var  type  to char, ){
+} returned void
+var getchar type function getchar(){
+} returned int
 var x type pointer to function (){
 } returned int
 var y type pointer to function (var  type pointer to void, var  type int, var x type int, var y type char, ){
