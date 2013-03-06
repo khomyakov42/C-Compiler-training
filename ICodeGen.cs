@@ -13,6 +13,9 @@ namespace Compiler
 		//объявляет переменную, возвращает ее адрес
 		void Decl(Symbols.Var var);
 
+		//достает из стека адрес элемента и возвращает в стек значение лежащее по удресу
+		void Value(Symbols.Type t_val);
+
 		void StartProc(Symbols.Func f);
 
 		void EndProc();
@@ -21,7 +24,7 @@ namespace Compiler
 
 		void ToFloat(int size = 8);
 
-		void Call(Symbols.Type ret_type);
+		void Call(Symbols.Func func);
 
 		//добавляет в стек константу
 		void Push(Syntax.Const constant);

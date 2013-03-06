@@ -626,7 +626,7 @@ namespace Compiler
 				this.arguments.Reverse();
 
 				this.operand.GenerateCode(gen);
-				gen.Call();
+				gen.Call((Symbols.Func)this.operand.GetType());
 
 				for (int i = 0; i < this.arguments.Count; ++i )
 				{
@@ -1006,7 +1006,7 @@ namespace Compiler
 				if (!(this.expression is EmptyExpression))
 				{
 					this.expression.GenerateCode(gen);
-					if (!(this.expression.GetType() is Symbols.VOID)
+					if (!(this.expression.GetType() is Symbols.VOID))
 					{
 						gen.Pop();
 					}

@@ -73,6 +73,21 @@ namespace Compiler.Fasm
 			this.address.Add(var, new Addr(Reg.EBP, size) - this.offset);
 		}
 
+		public void Value(Symbols.Type t_val)
+		{
+			Reg r = GetFreeReg();
+			AddCode(Com.POP, new Addr(r));
+			if (t_val is Symbols.INT || t_val is Symbols.POINTER || t_val is Symbols.CHAR)
+			{
+				AddCode(Com.PUSH, new Val(new Addr(r), t_val.GetSizeType()));
+			}
+			else if (t_val is Symbols.DOUBLE)
+			{
+				AddCode(Com.SUB, new Addr(Reg.ESP), new Val(8, size: 4));
+				AddCode(Com.MOV, new Addr(Reg.ESP), new Val(new Addr(r), size: 8));
+			}
+		}
+
 		public void StartProc(Symbols.Func f) 
 		{
 			string label = this.Label(f.GetName());
@@ -107,11 +122,15 @@ namespace Compiler.Fasm
 			this.stack.Push(Type.GetType(8));
 		}
 
-		public void Call(Symbols.Type ret_type)
+		public void Call(Symbols.Func func)
 		{
 			Reg r = GetFreeReg();
 			AddCode(Com.POP, new Addr(r));
-			AddCode(Com.CALL, new Val(new Addr(r), 4));   
+			AddCode(Com.CALL, new Val(new Addr(r), 4));
+			if (!(func.GetRefType() is Symbols.VOID))
+			{
+				AddCode(Com.PUSH, new Addr(Reg.EAX));
+			}
 		}
 
 		public void Push(Syntax.Const c) 
@@ -251,8 +270,8 @@ namespace Compiler.Fasm
 
 			outs.WriteLine("format PE console");
 			outs.WriteLine("entry start");
-			outs.WriteLine("include 'include/win32a.inc'");
-
+			//outs.WriteLine("include 'include/win32a.inc'");
+			outs.WriteLine("include 'win32a.inc'");
 
 			if (this.consts.Count > 0)
 			{
@@ -274,7 +293,7 @@ namespace Compiler.Fasm
 
 			if (this.imports.Count > 0)
 			{
-				outs.Write("\timport msvcrt, ");
+				outs.Write("\timport msvcrt");
 				foreach (string import in this.imports)
 				{
 					outs.Write("\\");
@@ -298,6 +317,8 @@ namespace Compiler.Fasm
 			}
 
 			outs.WriteLine("start:");
+			outs.WriteLine("\tfninit");
+			outs.WriteLine("\tcld");
 			outs.WriteLine("\tcall main");
 			outs.WriteLine("\tpush 0");
 			outs.WriteLine("\tcall [ExitProcess]");
